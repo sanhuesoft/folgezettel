@@ -31,6 +31,7 @@
   "note.basename": "Note {zid}",
   "note.untitled": "Untitled",
   "action.createArea": "Create new area…",
+  "action.createBranch": "Create branch note…",
   "command.reloadView": "Reload view",
   "notice.viewReloaded": "View reloaded"
 }

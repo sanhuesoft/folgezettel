@@ -1,4 +1,4 @@
-import { App, FuzzySuggestModal, ItemView, Plugin, WorkspaceLeaf, TFile, Notice, Menu } from 'obsidian';
+import { App, FuzzySuggestModal, ItemView, Plugin, WorkspaceLeaf, TFile, Notice, Menu, setIcon } from 'obsidian';
 import { DEFAULT_SETTINGS, FolgezettelSettingTab, PluginSettings } from './settings';
 import { I18n } from './i18n';
 
@@ -626,6 +626,56 @@ class FolgezettelView extends ItemView {
 
       self.createEl('span', { text: ` ${node.file.basename}`, cls: 'fzz-title' });
 
+      // Acción a la derecha: crear nueva rama desde este nodo (icono corner-down-right)
+      try {
+        // No mostrar el botón en áreas de primer nivel (ZID numérico)
+        if (!/^\d+$/.test(node.zid)) {
+          const actions = self.createEl('div', { cls: 'fzz-actions' });
+          actions.style.marginLeft = 'auto';
+          const btn = actions.createEl('button', { cls: 'fzz-action-btn' });
+          btn.setAttr('aria-label', this.plugin.i18n.t('action.createBranch'));
+          // Small circular icon button styled via inline styles to match theme colors
+          btn.style.width = '16px';
+          btn.style.height = '16px';
+          btn.style.padding = '2px';
+          btn.style.border = '0';
+          btn.style.borderRadius = '50%';
+          btn.style.display = 'inline-flex';
+          btn.style.alignItems = 'center';
+          btn.style.justifyContent = 'center';
+          btn.style.background = 'transparent';
+          btn.style.color = 'var(--text-muted, currentColor)';
+          setIcon(btn, 'corner-down-right');
+          // Reduce SVG size if created
+          const svg = btn.querySelector('svg');
+          if (svg) {
+            svg.setAttribute('width', '12');
+            svg.setAttribute('height', '12');
+          }
+          btn.onclick = async (e) => {
+            e.stopPropagation();
+            const newZid = await this.computeNewZid(node, 'branch');
+            const baseName = this.plugin.i18n.t('note.untitled');
+            let fileName = baseName;
+            let idx = 1;
+            while (this.app.vault.getFiles().some((f) => f.basename === fileName)) {
+              fileName = `${baseName} ${idx}`;
+              idx += 1;
+            }
+            const content = `---\nzid: ${newZid}\n---\n`;
+            const newFile = await this.app.vault.create(`${fileName}.md`, content);
+            try {
+              await this.app.workspace.getLeaf(false).openFile(newFile);
+            } catch (_e) {
+              await this.app.workspace.getLeaf(true).openFile(newFile);
+            }
+            this.refreshViews();
+          };
+        }
+      } catch (_e) {
+        // Si setIcon falla por alguna razón, ignorar y no añadir la acción
+      }
+
       self.onclick = async () => {
         try {
           await this.app.workspace.getLeaf(false).openFile(node.file);
@@ -634,10 +684,12 @@ class FolgezettelView extends ItemView {
         }
       };
 
-      if (node.children.length > 0 && expanded[node.zid]) {
+      if (expanded[node.zid]) {
         // Crear contenedor para hijos que muestra la línea vertical
         const childrenContainer = treeItem.createEl('div', { cls: 'tree-item-children' });
         for (const child of node.children) renderNode(child, depth + 1, childrenContainer);
+
+        // (Removed per-level placeholder row — branch creation now via right-aligned button)
       }
     };
 

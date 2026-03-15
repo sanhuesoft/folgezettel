@@ -31,6 +31,7 @@
   "note.basename": "Nota {zid}",
   "note.untitled": "Sin título",
   "action.createArea": "Crear nueva área…",
+  "action.createBranch": "Crear nota rama…",
   "command.reloadView": "Recargar vista",
   "notice.viewReloaded": "Vista recargada"
 }
