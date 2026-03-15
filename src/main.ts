@@ -1,4 +1,4 @@
-import { ItemView, Plugin, WorkspaceLeaf, TFile, Notice, Menu } from 'obsidian';
+import { App, FuzzySuggestModal, ItemView, Plugin, WorkspaceLeaf, TFile, Notice, Menu } from 'obsidian';
 
 const VIEW_TYPE = 'folgezettel-view';
 
@@ -48,6 +48,8 @@ export default class FolgezettelPlugin extends Plugin {
 
     this.registerEvent(this.app.vault.on('modify', () => this.refreshViews()));
     this.registerEvent(this.app.vault.on('create', () => this.refreshViews()));
+    this.registerEvent(this.app.vault.on('delete', () => this.refreshViews()));
+    this.registerEvent(this.app.vault.on('rename', () => this.refreshViews()));
   }
 
   onunload() {
@@ -71,6 +73,7 @@ class FolgezettelView extends ItemView {
   private plugin: FolgezettelPlugin;
   private listEl!: HTMLElement;
   private expandedState: Record<string, boolean> = {};
+  private renderVersion = 0;
 
   constructor(leaf: WorkspaceLeaf, plugin: FolgezettelPlugin) {
     super(leaf);
@@ -135,7 +138,7 @@ class FolgezettelView extends ItemView {
     return res;
   }
 
-  async createZettel(node: { zid: string }, type: 'next' | 'lateral' | 'deep') {
+  private async computeNewZid(node: { zid: string }, type: 'next' | 'lateral' | 'deep'): Promise<string> {
     const items = await this.collectZidFiles();
     const zids = items.map((it) => it.zid);
     let newZid = '';
@@ -189,6 +192,12 @@ class FolgezettelView extends ItemView {
       }
     }
 
+    return newZid;
+  }
+
+  async createZettel(node: { zid: string }, type: 'next' | 'lateral' | 'deep') {
+    const newZid = await this.computeNewZid(node, type);
+
     const baseName = `Nota ${newZid}`;
     let fileName = baseName;
     let idx = 1;
@@ -203,11 +212,51 @@ class FolgezettelView extends ItemView {
     this.refreshViews();
   }
 
+  async assignZettel(node: { zid: string }, type: 'next' | 'lateral' | 'deep') {
+    const newZid = await this.computeNewZid(node, type);
+
+    const allFiles = this.app.vault.getMarkdownFiles();
+    const withZid = await this.collectZidFiles();
+    const pathsWithZid = new Set(withZid.map((it) => it.file.path));
+    const candidates = allFiles.filter((f) => !pathsWithZid.has(f.path));
+
+    if (candidates.length === 0) {
+      new Notice('No hay notas sin ZID en la bóveda.');
+      return;
+    }
+
+    new ZidAssignModal(this.app, candidates, newZid, async (file) => {
+      await this.addZidToFile(file, newZid);
+      // El evento vault.modify ya dispara refreshViews automáticamente
+    }).open();
+  }
+
+  private async addZidToFile(file: TFile, zid: string) {
+    const content = await this.app.vault.read(file);
+    let newContent: string;
+
+    if (/^---\n/.test(content)) {
+      // Insertar el campo zid justo antes del cierre --- sin tocar nada más
+      newContent = content.replace(/^(---\n[\s\S]*?)(\n---)/, `$1\nzid: ${zid}$2`);
+    } else {
+      // Crear frontmatter mínimo al inicio
+      newContent = `---\nzid: ${zid}\n---\n${content}`;
+    }
+
+    await this.app.vault.modify(file, newContent);
+    new Notice(`ZID ${zid} asignado a "${file.basename}"`);
+  }
+
   async renderList() {
     if (!this.listEl) return;
-    this.listEl.empty();
+    const version = ++this.renderVersion;
 
     const items = await this.collectZidFiles();
+
+    // Si una llamada más reciente llegó mientras esperábamos, la cedemos el paso
+    if (version !== this.renderVersion) return;
+
+    this.listEl.empty();
     items.sort((a, b) => compareZid(a.zid, b.zid));
 
     const zidCount: Record<string, number> = {};
@@ -229,7 +278,9 @@ class FolgezettelView extends ItemView {
       let parentZid = '';
       for (let i = it.zid.length - 1; i > 0; i -= 1) {
         const candidate = it.zid.slice(0, i);
-        if (nodeMap[candidate]) {
+        // Considerar relación padre-hijo solo si el carácter siguiente es un punto (deep note)
+        // Esto evita que sufijos laterales tipo '1.1a' se conviertan en hijos de '1.1'
+        if (nodeMap[candidate] && it.zid.charAt(i) === '.') {
           parentZid = candidate;
           break;
         }
@@ -258,14 +309,29 @@ class FolgezettelView extends ItemView {
           item.onClick(async () => this.createZettel(node, 'next'));
         });
         menu.addItem((item) => {
+          item.setTitle('Asignar nota siguiente');
+          item.setIcon('link');
+          item.onClick(async () => this.assignZettel(node, 'next'));
+        });
+        menu.addItem((item) => {
           item.setTitle('Crear nota lateral');
           item.setIcon('split');
           item.onClick(async () => this.createZettel(node, 'lateral'));
         });
         menu.addItem((item) => {
-          item.setTitle('Crear nota de profundizacion');
+          item.setTitle('Asignar nota lateral');
+          item.setIcon('link');
+          item.onClick(async () => this.assignZettel(node, 'lateral'));
+        });
+        menu.addItem((item) => {
+          item.setTitle('Crear nota de profundización');
           item.setIcon('down-arrow');
           item.onClick(async () => this.createZettel(node, 'deep'));
+        });
+        menu.addItem((item) => {
+          item.setTitle('Asignar nota de profundización');
+          item.setIcon('link');
+          item.onClick(async () => this.assignZettel(node, 'deep'));
         });
         menu.showAtPosition({ x: event.pageX, y: event.pageY });
       };
@@ -323,5 +389,31 @@ class FolgezettelView extends ItemView {
     };
 
     Object.values(roots).forEach((node) => renderNode(node, 0));
+  }
+}
+
+class ZidAssignModal extends FuzzySuggestModal<TFile> {
+  private files: TFile[];
+  private newZid: string;
+  private onChoose: (file: TFile) => Promise<void>;
+
+  constructor(app: App, files: TFile[], newZid: string, onChoose: (file: TFile) => Promise<void>) {
+    super(app);
+    this.files = files;
+    this.newZid = newZid;
+    this.onChoose = onChoose;
+    this.setPlaceholder(`Buscar nota sin ZID para asignarle ${newZid}…`);
+  }
+
+  getItems(): TFile[] {
+    return this.files;
+  }
+
+  getItemText(file: TFile): string {
+    return file.basename;
+  }
+
+  async onChooseItem(file: TFile): Promise<void> {
+    await this.onChoose(file);
   }
 }
