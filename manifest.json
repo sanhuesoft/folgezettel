@@ -1,9 +1,9 @@
 {
-  "id": "folgezettel-plugin",
-  "name": "Folgezettel Sidebar",
+  "id": "obsidian-folgezettel",
+  "name": "Folgezettel",
   "version": "0.1.0",
   "minAppVersion": "0.12.0",
-  "description": "Muestra notas con zid en el frontmatter ordenadas e indentadas estilo Luhmann.",
+  "description": "Construye un Folgezettel a partir de la propiedad zid en el frontmatter de tus notas.",
   "author": "Fabián Sanhueza Vásquez",
   "isDesktopOnly": false,
   "main": "main.js",

@@ -1,11 +1,14 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
+import { I18n } from './i18n';
 
 export interface PluginSettings {
   separator: string;
+  lang?: string; // 'auto' | 'en' | 'es'
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
   separator: '.',
+  lang: 'auto',
 };
 
 export class FolgezettelSettingTab extends PluginSettingTab {
@@ -20,11 +23,13 @@ export class FolgezettelSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl('h2', { text: 'Folgezettel — Ajustes' });
+    const i18n: I18n = this.plugin.i18n || new I18n(this.plugin.settings?.lang);
+
+    containerEl.createEl('h2', { text: i18n.t('settings.title') });
 
     new Setting(containerEl)
-      .setName('Símbolo separador de niveles')
-      .setDesc('Selecciona el símbolo que se usará para separar niveles (deep notes).')
+      .setName(i18n.t('settings.separator.name'))
+      .setDesc(i18n.t('settings.separator.desc'))
       .addDropdown((dropdown) =>
         dropdown
           .addOption('.', '.')
@@ -40,6 +45,25 @@ export class FolgezettelSettingTab extends PluginSettingTab {
             } catch (_e) {
               // ignore if plugin doesn't expose refreshViews
             }
+            this.display();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(i18n.t('settings.lang.name'))
+      .setDesc(i18n.t('settings.lang.desc'))
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption('auto', i18n.t('settings.lang.auto'))
+          .addOption('en', i18n.t('settings.lang.en'))
+          .addOption('es', i18n.t('settings.lang.es'))
+          .setValue(this.plugin.settings.lang || 'auto')
+          .onChange(async (value) => {
+            this.plugin.settings.lang = value;
+            await this.plugin.saveSettings();
+            try {
+              this.plugin.refreshViews();
+            } catch (_e) {}
             this.display();
           })
       );

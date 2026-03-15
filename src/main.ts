@@ -1,5 +1,6 @@
 import { App, FuzzySuggestModal, ItemView, Plugin, WorkspaceLeaf, TFile, Notice, Menu } from 'obsidian';
 import { DEFAULT_SETTINGS, FolgezettelSettingTab, PluginSettings } from './settings';
+import { I18n } from './i18n';
 
 const VIEW_TYPE = 'folgezettel-view';
 
@@ -38,13 +39,19 @@ function compareZid(a: string, b: string) {
 
 export default class FolgezettelPlugin extends Plugin {
   settings: PluginSettings = DEFAULT_SETTINGS;
+  i18n!: I18n;
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    this.i18n = new I18n(this.settings.lang);
   }
 
   async saveSettings() {
     await this.saveData(this.settings);
+    this.i18n = new I18n(this.settings.lang);
+    try {
+      this.refreshViews();
+    } catch (_e) {}
   }
   async onload() {
     await this.loadSettings();
@@ -52,7 +59,7 @@ export default class FolgezettelPlugin extends Plugin {
 
     this.addCommand({
       id: 'open-folgezettel',
-      name: 'Open Folgezettel sidebar',
+      name: this.i18n.t('command.open'),
       callback: () => this.activateView(),
     });
 
@@ -100,7 +107,7 @@ class FolgezettelView extends ItemView {
   }
 
   getDisplayText() {
-    return 'Folgezettel';
+    return this.plugin.i18n.t('view.title');
   }
 
   getIcon() {
@@ -217,7 +224,7 @@ class FolgezettelView extends ItemView {
   async createZettel(node: { zid: string }, type: 'next' | 'lateral' | 'deep') {
     const newZid = await this.computeNewZid(node, type);
 
-    const baseName = `Nota ${newZid}`;
+    const baseName = this.plugin.i18n.t('note.basename', { zid: newZid });
     let fileName = baseName;
     let idx = 1;
     while (this.app.vault.getFiles().some((f) => f.basename === fileName)) {
@@ -240,14 +247,19 @@ class FolgezettelView extends ItemView {
     const candidates = allFiles.filter((f) => !pathsWithZid.has(f.path));
 
     if (candidates.length === 0) {
-      new Notice('No hay notas sin ZID en la bóveda.');
+      new Notice(this.plugin.i18n.t('notice.noCandidates'));
       return;
     }
-
-    new ZidAssignModal(this.app, candidates, newZid, async (file) => {
-      await this.addZidToFile(file, newZid);
-      // El evento vault.modify ya dispara refreshViews automáticamente
-    }).open();
+    new ZidAssignModal(
+      this.app,
+      candidates,
+      newZid,
+      async (file) => {
+        await this.addZidToFile(file, newZid);
+        // El evento vault.modify ya dispara refreshViews automáticamente
+      },
+      this.plugin.i18n.t('modal.assignPlaceholder', { zid: newZid })
+    ).open();
   }
 
   private async addZidToFile(file: TFile, zid: string) {
@@ -263,14 +275,14 @@ class FolgezettelView extends ItemView {
     }
 
     await this.app.vault.modify(file, newContent);
-    new Notice(`ZID ${zid} asignado a "${file.basename}"`);
+    new Notice(this.plugin.i18n.t('notice.zidAssigned', { zid, name: file.basename }));
   }
 
   async removeZidFromFile(file: TFile) {
     const content = await this.app.vault.read(file);
     const m = content.match(/^---\n([\s\S]*?)\n---\n?/);
     if (!m) {
-      new Notice('No se encontró frontmatter en la nota.');
+      new Notice(this.plugin.i18n.t('notice.noFrontmatter'));
       return;
     }
 
@@ -288,7 +300,7 @@ class FolgezettelView extends ItemView {
     }
 
     await this.app.vault.modify(file, newContent);
-    new Notice(`ZID eliminado de "${file.basename}"`);
+    new Notice(this.plugin.i18n.t('notice.zidRemoved', { name: file.basename }));
   }
 
   async renderList() {
@@ -307,7 +319,9 @@ class FolgezettelView extends ItemView {
     for (const it of items) zidCount[it.zid] = (zidCount[it.zid] || 0) + 1;
     const duplicatedZids = Object.keys(zidCount).filter((zid) => zidCount[zid] > 1);
     if (duplicatedZids.length > 0) {
-      new Notice(`ZIDs duplicados detectados: ${duplicatedZids.join(', ')}`);
+      new Notice(
+        this.plugin.i18n.t('notice.duplicatedZids', { list: duplicatedZids.join(', ') })
+      );
     }
 
     type TreeNode = { file: TFile; zid: string; parent: TreeNode | null; children: TreeNode[] };
@@ -349,43 +363,45 @@ class FolgezettelView extends ItemView {
         event.preventDefault();
         const menu = new Menu(this.app);
         menu.addItem((item) => {
-          item.setTitle('Crear nota siguiente');
+          item.setTitle(this.plugin.i18n.t('menu.createNext'));
           item.setIcon('arrow-right');
           item.onClick(async () => this.createZettel(node, 'next'));
         });
         menu.addItem((item) => {
-          item.setTitle('Asignar nota siguiente');
+          item.setTitle(this.plugin.i18n.t('menu.assignNext'));
           item.setIcon('link');
           item.onClick(async () => this.assignZettel(node, 'next'));
         });
         menu.addSeparator();
         menu.addItem((item) => {
-          item.setTitle('Crear nota lateral');
+          item.setTitle(this.plugin.i18n.t('menu.createLateral'));
           item.setIcon('split');
           item.onClick(async () => this.createZettel(node, 'lateral'));
         });
         menu.addItem((item) => {
-          item.setTitle('Asignar nota lateral');
+          item.setTitle(this.plugin.i18n.t('menu.assignLateral'));
           item.setIcon('link');
           item.onClick(async () => this.assignZettel(node, 'lateral'));
         });
         menu.addSeparator();
         menu.addItem((item) => {
-          item.setTitle('Crear nota de profundización');
+          item.setTitle(this.plugin.i18n.t('menu.createDeep'));
           item.setIcon('down-arrow');
           item.onClick(async () => this.createZettel(node, 'deep'));
         });
         menu.addItem((item) => {
-          item.setTitle('Asignar nota de profundización');
+          item.setTitle(this.plugin.i18n.t('menu.assignDeep'));
           item.setIcon('link');
           item.onClick(async () => this.assignZettel(node, 'deep'));
         });
         menu.addSeparator();
         menu.addItem((item) => {
-          item.setTitle('Eliminar zid');
+          item.setTitle(this.plugin.i18n.t('menu.removeZid'));
           item.setIcon('trash');
           item.onClick(async () => {
-            const ok = confirm(`Eliminar ZID ${node.zid} de "${node.file.basename}"? Esta acción no puede deshacerse.`);
+            const ok = confirm(
+              this.plugin.i18n.t('confirm.removeZid', { zid: node.zid, name: node.file.basename })
+            );
             if (!ok) return;
             await this.removeZidFromFile(node.file);
           });
@@ -456,12 +472,19 @@ class ZidAssignModal extends FuzzySuggestModal<TFile> {
   private newZid: string;
   private onChoose: (file: TFile) => Promise<void>;
 
-  constructor(app: App, files: TFile[], newZid: string, onChoose: (file: TFile) => Promise<void>) {
+  constructor(
+    app: App,
+    files: TFile[],
+    newZid: string,
+    onChoose: (file: TFile) => Promise<void>,
+    placeholder?: string
+  ) {
     super(app);
     this.files = files;
     this.newZid = newZid;
     this.onChoose = onChoose;
-    this.setPlaceholder(`Buscar nota sin ZID para asignarle ${newZid}…`);
+    if (placeholder) this.setPlaceholder(placeholder);
+    else this.setPlaceholder(`Buscar nota sin ZID para asignarle ${newZid}…`);
   }
 
   getItems(): TFile[] {
