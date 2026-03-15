@@ -515,6 +515,12 @@ class FolgezettelView extends ItemView {
       const treeItem = container.createEl('div', { cls: 'tree-item' });
       treeItem.style.marginLeft = `${depth * 16}px`;
       const self = treeItem.createEl('div', { cls: 'tree-item-self' });
+      // Keep the visible row height constant to avoid layout glitches when sidebar is narrow
+      self.style.minHeight = '24px';
+      self.style.height = '24px';
+      self.style.display = 'flex';
+      self.style.alignItems = 'center';
+      self.style.gap = '8px';
 
       self.oncontextmenu = (event) => {
         event.preventDefault();
@@ -803,6 +809,11 @@ class FolgezettelView extends ItemView {
       treeItem.style.marginTop = '8px';
       const self = treeItem.createEl('div', { cls: 'tree-item-self' });
       self.style.cursor = 'pointer';
+      self.style.minHeight = '24px';
+      self.style.height = '24px';
+      self.style.display = 'flex';
+      self.style.alignItems = 'center';
+      self.style.gap = '8px';
 
       // Zid area (icono plus en el lugar del zid)
       const zidEl = self.createEl('span', { cls: 'fzz-zid' });
