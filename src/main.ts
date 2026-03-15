@@ -89,6 +89,10 @@ class FolgezettelView extends ItemView {
     return 'Folgezettel';
   }
 
+  getIcon() {
+    return 'archive';
+  }
+
   async onOpen() {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();

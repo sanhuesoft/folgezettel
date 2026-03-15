@@ -1,7 +1,11 @@
+.tree-item {
+  margin-left: 8px !important;
+}
+
 .tree-item-children {
   border-left: 1px solid var(--divider-color, #444);
-  margin-left: 8px;
-  padding-left: 8px;
+  padding-left: 6px;
+  margin-left: 6px !important;
 }
 .fzz-toggle {
   width: 18px;
