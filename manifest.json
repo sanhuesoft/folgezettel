@@ -1,0 +1,11 @@
+{
+  "id": "folgezettel-plugin",
+  "name": "Folgezettel Sidebar",
+  "version": "0.1.0",
+  "minAppVersion": "0.12.0",
+  "description": "Muestra notas con zid en el frontmatter ordenadas e indentadas estilo Luhmann.",
+  "author": "Fabián Sanhueza Vásquez",
+  "isDesktopOnly": false,
+  "main": "main.js",
+  "css": "styles.css"
+}

@@ -1,0 +1,36 @@
+.tree-item-children {
+  border-left: 1px solid var(--divider-color, #444);
+  margin-left: 8px;
+  padding-left: 8px;
+}
+.fzz-toggle {
+  width: 18px;
+  text-align: center;
+  font-size: 1em;
+  user-select: none;
+}
+/* Padding externo para la vista Folgezettel */
+.folgezettel-view-root {
+  padding: 16px 12px 12px 16px;
+}
+
+.fzz-item{
+  padding: 4px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+.fzz-item:hover{
+  background-color: var(--background-modifier-hover);
+}
+
+.fzz-zid {
+  font-family: monospace;
+  font-size: 1em;
+  min-width: 120px;
+  margin-right: 8px;
+}
+.fzz-title {
+  font-size: 1em;
+}
+}

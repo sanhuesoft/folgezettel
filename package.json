@@ -1,0 +1,13 @@
+{
+  "name": "obsidian-folgezettel",
+  "version": "0.1.0",
+  "description": "Obsidian plugin: Folgezettel sidebar showing notes with zid frontmatter",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --format=cjs --target=es2020 --outfile=dist/main.js --minify --external:obsidian && cp dist/main.js main.js",
+    "dev": "esbuild src/main.ts --bundle --platform=node --format=cjs --target=es2020 --outfile=dist/main.js --sourcemap --watch --external:obsidian"
+  },
+  "devDependencies": {
+    "esbuild": "^0.18.0"
+  }
+}
