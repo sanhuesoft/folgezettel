@@ -6,7 +6,5 @@
   "description": "Implement the Folgezettel architecture directly and non-invasively within your vault.",
   "author": "Fabián Sanhueza Vásquez",
   "isDesktopOnly": false,
-  "main": "main.js",
-  "css": "styles.css",
   "fundingUrl": "https://ko-fi.com/sanhuesoft"
 }
