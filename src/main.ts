@@ -4,19 +4,26 @@ import { I18n } from './i18n';
 
 const VIEW_TYPE = 'folgezettel-view';
 
-type Token = { type: 'num' | 'alpha'; value: number };
+type Token = { type: 'num' | 'upper' | 'lower' | 'sep'; value: number | string };
 
 function tokenize(zid: string): Token[] {
-  // Remove common separator characters so tokens compare independent of the chosen separator
-  zid = String(zid).replace(/[.,\/]/g, '');
-  const parts = zid.match(/(\d+|[a-zA-Z]+)/g) || [];
+  const s = String(zid);
+  const parts = s.match(/(\d+|[A-Z]+|[a-z]+|[.,\/])/g) || [];
   return parts.map((p) => {
     if (/^\d+$/.test(p)) return { type: 'num', value: parseInt(p, 10) };
-    const letters = p.toLowerCase().split('');
-    let val = 0;
-    for (const ch of letters) val = val * 27 + (ch.charCodeAt(0) - 96);
-    return { type: 'alpha', value: val };
+    if (/^[A-Z]+$/.test(p)) return { type: 'upper', value: p };
+    if (/^[a-z]+$/.test(p)) return { type: 'lower', value: p };
+    return { type: 'sep', value: p };
   });
+}
+
+function typeRank(t: Token['type']) {
+  // Define ordering so that numeric/depth separators come before uppercase branches:
+  // num < sep < upper < lower
+  if (t === 'num') return 1;
+  if (t === 'sep') return 2;
+  if (t === 'upper') return 3;
+  return 4;
 }
 
 function compareZid(a: string, b: string) {
@@ -29,9 +36,17 @@ function compareZid(a: string, b: string) {
     if (!xa) return -1;
     if (!xb) return 1;
     if (xa.type === xb.type) {
-      if (xa.value !== xb.value) return xa.value - xb.value;
+      if (xa.type === 'num') {
+        const na = xa.value as number;
+        const nb = (xb.value as number) || 0;
+        if (na !== nb) return na - nb;
+      } else {
+        const sa = String(xa.value);
+        const sb = String(xb.value);
+        if (sa !== sb) return sa < sb ? -1 : 1;
+      }
     } else {
-      return xa.type === 'num' ? -1 : 1;
+      return typeRank(xa.type) - typeRank(xb.type);
     }
   }
   return 0;
@@ -175,68 +190,168 @@ class FolgezettelView extends ItemView {
     return res;
   }
 
-  private async computeNewZid(node: { zid: string }, type: 'next' | 'lateral' | 'deep'): Promise<string> {
+  private async computeNewZid(
+    node: { zid: string },
+    type: 'next' | 'lateral' | 'deep' | 'branch' | 'footnote' | 'inserted'
+  ): Promise<string> {
     const items = await this.collectZidFiles();
     const zids = items.map((it) => it.zid);
     let newZid = '';
+    const exists = (z: string) => zids.includes(z);
+
+    const incChar = (ch: string) => String.fromCharCode(ch.charCodeAt(0) + 1);
 
     if (type === 'next') {
-      const match = node.zid.match(/^(.*?)(\d+)([a-zA-Z]*)$/);
-      if (match) {
-        const prefix = match[1];
-        const number = parseInt(match[2], 10);
-        const suffix = match[3] || '';
-        if (suffix) {
-          let nextChar = String.fromCharCode(suffix.toLowerCase().charCodeAt(0) + 1);
-          newZid = `${prefix}${number}${nextChar}`;
-          while (zids.includes(newZid)) {
-            nextChar = String.fromCharCode(nextChar.charCodeAt(0) + 1);
-            newZid = `${prefix}${number}${nextChar}`;
+      // If ends with number -> increment number
+      const mNum = node.zid.match(/^(.*?)(\d+)$/);
+      if (mNum) {
+        const prefix = mNum[1];
+        let num = parseInt(mNum[2], 10) + 1;
+        newZid = `${prefix}${num}`;
+        while (exists(newZid)) {
+          num += 1;
+          newZid = `${prefix}${num}`;
+        }
+      } else {
+        // If ends with uppercase
+        const mUp = node.zid.match(/^(.*?)([A-Z])$/);
+        if (mUp) {
+          const prefix = mUp[1];
+          let ch = mUp[2];
+          let next = incChar(ch);
+          newZid = `${prefix}${next}`;
+          while (exists(newZid)) {
+            next = incChar(next);
+            newZid = `${prefix}${next}`;
           }
         } else {
-          let nextNum = number + 1;
-          newZid = `${prefix}${nextNum}`;
-          while (zids.includes(newZid)) {
-            nextNum += 1;
-            newZid = `${prefix}${nextNum}`;
+          // ends with lowercase
+          const mLow = node.zid.match(/^(.*?)([a-z])$/);
+          if (mLow) {
+            const prefix = mLow[1];
+            let ch = mLow[2];
+            let next = incChar(ch);
+            newZid = `${prefix}${next}`;
+            while (exists(newZid)) {
+              next = incChar(next);
+              newZid = `${prefix}${next}`;
+            }
+          } else {
+            // fallback: append 1
+            let n = 1;
+            newZid = `${node.zid}${n}`;
+            while (exists(newZid)) {
+              n += 1;
+              newZid = `${node.zid}${n}`;
+            }
+          }
+        }
+      }
+    }
+
+    if (type === 'branch' || type === 'lateral') {
+      // Branch notes: indented a level relative to parent.
+      // If ends in number -> add uppercase letter. 1.1 -> 1.1A
+      // If ends uppercase -> add lowercase letter. 1.1A -> 1.1Aa
+      // If ends lowercase -> add uppercase letter. 7.5a -> 7.5aA
+      const mNum = node.zid.match(/^(.*?)(\d+)$/);
+      if (mNum) {
+        let suffix = 'A';
+        newZid = `${node.zid}${suffix}`;
+        while (exists(newZid)) {
+          suffix = incChar(suffix);
+          newZid = `${node.zid}${suffix}`;
+        }
+      } else if (/.*[A-Z]$/.test(node.zid)) {
+        let suffix = 'a';
+        newZid = `${node.zid}${suffix}`;
+        while (exists(newZid)) {
+          suffix = incChar(suffix);
+          newZid = `${node.zid}${suffix}`;
+        }
+      } else {
+        // ends lowercase (or other): append uppercase
+        let suffix = 'A';
+        newZid = `${node.zid}${suffix}`;
+        while (exists(newZid)) {
+          suffix = incChar(suffix);
+          newZid = `${node.zid}${suffix}`;
+        }
+      }
+    }
+
+    if (type === 'footnote') {
+      // Footnote: indented one level, placed before branch notes. Always add
+      // configured separator and the first available numeric index.
+      const sep = this.plugin.settings?.separator || '.';
+      let idx = 1;
+      newZid = `${node.zid}${sep}${idx}`;
+      while (exists(newZid)) {
+        idx += 1;
+        newZid = `${node.zid}${sep}${idx}`;
+      }
+    }
+
+    if (type === 'inserted') {
+      // Inserted notes: same level as parent (sibling insertion)
+      // If ends with number -> add lowercase letter 1.1 -> 1.1a
+      // If ends with uppercase -> add numeric suffix 6.5A -> 6.5A1
+      // If ends with lowercase -> try to create next-lowercase+'1' if that sibling exists,
+      // otherwise append number to current (6.5a1).
+      const mNum = node.zid.match(/^(.*?)(\d+)$/);
+      if (mNum) {
+        let suffix = 'a';
+        newZid = `${node.zid}${suffix}`;
+        while (exists(newZid)) {
+          suffix = incChar(suffix);
+          newZid = `${node.zid}${suffix}`;
+        }
+      } else if (/.*[A-Z]$/.test(node.zid)) {
+        let idx = 1;
+        newZid = `${node.zid}${idx}`;
+        while (exists(newZid)) {
+          idx += 1;
+          newZid = `${node.zid}${idx}`;
+        }
+      } else if (/.*[a-z]$/.test(node.zid)) {
+        const last = node.zid.slice(-1);
+        const nextLetter = incChar(last);
+        const baseNext = `${node.zid.slice(0, -1)}${nextLetter}`;
+        // Prefer using next sibling letter + '1' if that sibling exists or is free
+        let candidate = `${baseNext}1`;
+        if (!exists(candidate)) {
+          // If it's free we can use it; otherwise fallback to append number to current
+          newZid = candidate;
+        } else {
+          let idx = 1;
+          newZid = `${node.zid}${idx}`;
+          while (exists(newZid)) {
+            idx += 1;
+            newZid = `${node.zid}${idx}`;
           }
         }
       } else {
+        // fallback
         let n = 1;
         newZid = `${node.zid}${n}`;
-        while (zids.includes(newZid)) {
+        while (exists(newZid)) {
           n += 1;
           newZid = `${node.zid}${n}`;
         }
       }
     }
 
-    if (type === 'lateral') {
-      let suffix = 'a';
-      newZid = `${node.zid}${suffix}`;
-      while (zids.includes(newZid)) {
-        suffix = String.fromCharCode(suffix.charCodeAt(0) + 1);
-        newZid = `${node.zid}${suffix}`;
-      }
-    }
-
-    if (type === 'deep') {
-      const sep = this.plugin.settings?.separator || '.';
-      let idx = 1;
-      newZid = `${node.zid}${sep}${idx}`;
-      while (zids.includes(newZid)) {
-        idx += 1;
-        newZid = `${node.zid}${sep}${idx}`;
-      }
-    }
-
     return newZid;
   }
 
-  async createZettel(node: { zid: string }, type: 'next' | 'lateral' | 'deep') {
+  async createZettel(
+    node: { zid: string },
+    type: 'next' | 'lateral' | 'deep' | 'branch' | 'footnote' | 'inserted'
+  ) {
     const newZid = await this.computeNewZid(node, type);
 
-    const baseName = this.plugin.i18n.t('note.basename', { zid: newZid });
+    // Use Obsidian-like untitled naming to avoid OS filename collisions
+    const baseName = this.plugin.i18n.t('note.untitled');
     let fileName = baseName;
     let idx = 1;
     while (this.app.vault.getFiles().some((f) => f.basename === fileName)) {
@@ -250,7 +365,10 @@ class FolgezettelView extends ItemView {
     this.refreshViews();
   }
 
-  async assignZettel(node: { zid: string }, type: 'next' | 'lateral' | 'deep') {
+  async assignZettel(
+    node: { zid: string },
+    type: 'next' | 'lateral' | 'deep' | 'branch' | 'footnote' | 'inserted'
+  ) {
     const newZid = await this.computeNewZid(node, type);
 
     const allFiles = this.app.vault.getMarkdownFiles();
@@ -346,12 +464,38 @@ class FolgezettelView extends ItemView {
 
     for (const it of items) {
       let parentZid = '';
+      const sepChar = this.plugin.settings?.separator || '.';
       for (let i = it.zid.length - 1; i > 0; i -= 1) {
         const candidate = it.zid.slice(0, i);
-        // Considerar relación padre-hijo solo si el carácter siguiente es el separador configurado
-        // Esto evita que sufijos laterales tipo '1.1a' se conviertan en hijos de '1.1'
-        const sepChar = this.plugin.settings?.separator || '.';
-        if (nodeMap[candidate] && it.zid.charAt(i) === sepChar) {
+        if (!nodeMap[candidate]) continue;
+        const suffix = it.zid.slice(candidate.length);
+
+        // 1) If suffix starts with configured separator -> parent
+        if (suffix.startsWith(sepChar)) {
+          parentZid = candidate;
+          break;
+        }
+
+        // 2) If suffix begins with one or more uppercase letters -> child (deeper level)
+        if (/^[A-Z]+/.test(suffix)) {
+          parentZid = candidate;
+          break;
+        }
+
+        // 3) If suffix is purely digits -> child of candidate (numeric deep under uppercase or similar)
+        if (/^\d+$/.test(suffix)) {
+          parentZid = candidate;
+          break;
+        }
+
+        // 4) Inserted notes pattern: candidate + digits + lowercase (e.g., parent '1' and zid '1.1a')
+        if (/^\d+[a-z]+$/.test(suffix)) {
+          parentZid = candidate;
+          break;
+        }
+
+        // 5) If suffix is lowercase only but candidate ends with uppercase (e.g., 1.1A -> 1.1Aa)
+        if (/^[a-z]+$/.test(suffix) && /[A-Z]$/.test(candidate)) {
           parentZid = candidate;
           break;
         }
@@ -385,15 +529,38 @@ class FolgezettelView extends ItemView {
           item.onClick(async () => this.assignZettel(node, 'next'));
         });
         menu.addSeparator();
+        menu.addSeparator();
         menu.addItem((item) => {
-          item.setTitle(this.plugin.i18n.t('menu.createLateral'));
-          item.setIcon('split');
-          item.onClick(async () => this.createZettel(node, 'lateral'));
+          item.setTitle(this.plugin.i18n.t('menu.createInserted'));
+          item.setIcon('insert');
+          item.onClick(async () => this.createZettel(node, 'inserted'));
         });
         menu.addItem((item) => {
-          item.setTitle(this.plugin.i18n.t('menu.assignLateral'));
+          item.setTitle(this.plugin.i18n.t('menu.assignInserted'));
           item.setIcon('link');
-          item.onClick(async () => this.assignZettel(node, 'lateral'));
+          item.onClick(async () => this.assignZettel(node, 'inserted'));
+        });
+        menu.addSeparator();
+        menu.addItem((item) => {
+          item.setTitle(this.plugin.i18n.t('menu.createBranch'));
+          item.setIcon('split');
+          item.onClick(async () => this.createZettel(node, 'branch'));
+        });
+        menu.addItem((item) => {
+          item.setTitle(this.plugin.i18n.t('menu.assignBranch'));
+          item.setIcon('link');
+          item.onClick(async () => this.assignZettel(node, 'branch'));
+        });
+        menu.addSeparator();
+        menu.addItem((item) => {
+          item.setTitle(this.plugin.i18n.t('menu.createFootnote'));
+          item.setIcon('down-arrow');
+          item.onClick(async () => this.createZettel(node, 'footnote'));
+        });
+        menu.addItem((item) => {
+          item.setTitle(this.plugin.i18n.t('menu.assignFootnote'));
+          item.setIcon('link');
+          item.onClick(async () => this.assignZettel(node, 'footnote'));
         });
         menu.addSeparator();
         menu.addItem((item) => {
@@ -452,7 +619,6 @@ class FolgezettelView extends ItemView {
       const zidEl = self.createEl('span', { text: node.zid, cls: 'fzz-zid' });
       // Mostrar ZID completo en tooltip; truncar visualmente via CSS
       zidEl.title = node.zid;
-      if (/^\d+$/.test(node.zid)) zidEl.style.fontWeight = 'bold';
       if (duplicatedZids.includes(node.zid)) {
         zidEl.style.color = 'var(--color-error, red)';
         zidEl.title = `${node.zid} — ZID duplicado`;
@@ -476,6 +642,57 @@ class FolgezettelView extends ItemView {
     };
 
     Object.values(roots).forEach((node) => renderNode(node, 0));
+
+    // Añadir opción al final para crear un área nueva alineada con el nivel raíz
+    try {
+      const topKeys = Object.keys(roots)
+        .map((k) => parseInt(k, 10))
+        .filter((n) => !isNaN(n));
+      const maxTop = topKeys.length ? Math.max(...topKeys) : 0;
+      const nextArea = maxTop + 1;
+
+      // Crear un nodo visual con la misma estructura que renderNode
+      const treeItem = this.listEl.createEl('div', { cls: 'tree-item create-area' });
+      treeItem.style.marginLeft = `${0 * 16}px`;
+      treeItem.style.marginTop = '8px';
+      const self = treeItem.createEl('div', { cls: 'tree-item-self' });
+      self.style.cursor = 'pointer';
+
+      // Zid area (icono plus en el lugar del zid)
+      const zidEl = self.createEl('span', { cls: 'fzz-zid' });
+      // Mostrar el número correlativo donde normalmente va el ZID
+      zidEl.title = String(nextArea);
+      zidEl.textContent = String(nextArea);
+
+      // Texto alineado donde va el título (en cursiva)
+      const titleEl = self.createEl('span', {
+        text: ` ${this.plugin.i18n.t('action.createArea')}`,
+        cls: 'fzz-title',
+      });
+      titleEl.style.fontStyle = 'italic';
+
+      self.onclick = async () => {
+        const zid = String(nextArea);
+        const baseName = this.plugin.i18n.t('note.untitled');
+        let fileName = baseName;
+        let idx = 1;
+        while (this.app.vault.getFiles().some((f) => f.basename === fileName)) {
+          fileName = `${baseName} ${idx}`;
+          idx += 1;
+        }
+
+        const content = `---\nzid: ${zid}\n---\n`;
+        const newFile = await this.app.vault.create(`${fileName}.md`, content);
+        try {
+          await this.app.workspace.getLeaf(false).openFile(newFile);
+        } catch (_e) {
+          await this.app.workspace.getLeaf(true).openFile(newFile);
+        }
+        this.refreshViews();
+      };
+    } catch (e) {
+      // No bloquear la renderización en caso de error al calcular el área
+    }
   }
 }
 

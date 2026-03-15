@@ -12,8 +12,12 @@
   "view.title": "Folgezettel",
   "menu.createNext": "Create next note",
   "menu.assignNext": "Assign next note",
-  "menu.createLateral": "Create lateral note",
-  "menu.assignLateral": "Assign lateral note",
+  "menu.createBranch": "Create branch note",
+  "menu.assignBranch": "Assign branch note",
+  "menu.createInserted": "Create inserted note",
+  "menu.assignInserted": "Assign inserted note",
+  "menu.createFootnote": "Create footnote",
+  "menu.assignFootnote": "Assign footnote",
   "menu.createDeep": "Create sub-note",
   "menu.assignDeep": "Assign sub-note",
   "menu.removeZid": "Remove ZID",
@@ -25,6 +29,8 @@
   "notice.duplicatedZids": "Duplicated ZIDs detected: {list}",
   "confirm.removeZid": "Remove ZID {zid} from \"{name}\"? This cannot be undone.",
   "note.basename": "Note {zid}",
+  "note.untitled": "Untitled",
+  "action.createArea": "Create new area…",
   "command.reloadView": "Reload view",
   "notice.viewReloaded": "View reloaded"
 }

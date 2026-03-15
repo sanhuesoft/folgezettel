@@ -12,8 +12,12 @@
   "view.title": "Folgezettel",
   "menu.createNext": "Crear nota siguiente",
   "menu.assignNext": "Asignar nota siguiente",
-  "menu.createLateral": "Crear nota lateral",
-  "menu.assignLateral": "Asignar nota lateral",
+  "menu.createBranch": "Crear nota rama",
+  "menu.assignBranch": "Asignar nota rama",
+  "menu.createInserted": "Crear nota insertada",
+  "menu.assignInserted": "Asignar nota insertada",
+  "menu.createFootnote": "Crear nota al pie",
+  "menu.assignFootnote": "Asignar nota al pie",
   "menu.createDeep": "Crear nota de profundización",
   "menu.assignDeep": "Asignar nota de profundización",
   "menu.removeZid": "Eliminar ZID",
@@ -25,6 +29,8 @@
   "notice.duplicatedZids": "ZIDs duplicados detectados: {list}",
   "confirm.removeZid": "Eliminar ZID {zid} de \"{name}\"? Esta acción no puede deshacerse.",
   "note.basename": "Nota {zid}",
+  "note.untitled": "Sin título",
+  "action.createArea": "Crear nueva área…",
   "command.reloadView": "Recargar vista",
   "notice.viewReloaded": "Vista recargada"
 }
