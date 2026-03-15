@@ -24,6 +24,23 @@
   background-color: var(--background-modifier-hover);
 }
 
+/* Resaltar fila al hacer hover, estilo similar al explorador nativo */
+.tree-item-self {
+  display: flex;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+.tree-item-self:hover {
+  background-color: var(--background-modifier-hover);
+}
+.tree-item-self:hover .fzz-title {
+  color: var(--text-normal);
+}
+.tree-item-self:hover .fzz-zid {
+  color: inherit;
+}
+
 .fzz-zid {
   font-family: monospace;
   font-size: 1em;

@@ -247,6 +247,31 @@ class FolgezettelView extends ItemView {
     new Notice(`ZID ${zid} asignado a "${file.basename}"`);
   }
 
+  async removeZidFromFile(file: TFile) {
+    const content = await this.app.vault.read(file);
+    const m = content.match(/^---\n([\s\S]*?)\n---\n?/);
+    if (!m) {
+      new Notice('No se encontró frontmatter en la nota.');
+      return;
+    }
+
+    const fm = m[1];
+    const lines = fm.split(/\r?\n/);
+    const filtered = lines.filter((ln) => !/^\s*zid\s*:/i.test(ln));
+    const newFm = filtered.join('\n').trim();
+
+    let newContent: string;
+    if (newFm === '') {
+      // Eliminar frontmatter por completo
+      newContent = content.replace(/^---\n[\s\S]*?\n---\n?/, '');
+    } else {
+      newContent = content.replace(/^---\n([\s\S]*?)\n---/, `---\n${newFm}\n---`);
+    }
+
+    await this.app.vault.modify(file, newContent);
+    new Notice(`ZID eliminado de "${file.basename}"`);
+  }
+
   async renderList() {
     if (!this.listEl) return;
     const version = ++this.renderVersion;
@@ -302,7 +327,7 @@ class FolgezettelView extends ItemView {
 
       self.oncontextmenu = (event) => {
         event.preventDefault();
-        const menu = new Menu();
+        const menu = new Menu(this.app);
         menu.addItem((item) => {
           item.setTitle('Crear nota siguiente');
           item.setIcon('arrow-right');
@@ -313,6 +338,7 @@ class FolgezettelView extends ItemView {
           item.setIcon('link');
           item.onClick(async () => this.assignZettel(node, 'next'));
         });
+        menu.addSeparator();
         menu.addItem((item) => {
           item.setTitle('Crear nota lateral');
           item.setIcon('split');
@@ -323,6 +349,7 @@ class FolgezettelView extends ItemView {
           item.setIcon('link');
           item.onClick(async () => this.assignZettel(node, 'lateral'));
         });
+        menu.addSeparator();
         menu.addItem((item) => {
           item.setTitle('Crear nota de profundización');
           item.setIcon('down-arrow');
@@ -332,6 +359,16 @@ class FolgezettelView extends ItemView {
           item.setTitle('Asignar nota de profundización');
           item.setIcon('link');
           item.onClick(async () => this.assignZettel(node, 'deep'));
+        });
+        menu.addSeparator();
+        menu.addItem((item) => {
+          item.setTitle('Eliminar zid');
+          item.setIcon('trash');
+          item.onClick(async () => {
+            const ok = confirm(`Eliminar ZID ${node.zid} de "${node.file.basename}"? Esta acción no puede deshacerse.`);
+            if (!ok) return;
+            await this.removeZidFromFile(node.file);
+          });
         });
         menu.showAtPosition({ x: event.pageX, y: event.pageY });
       };
