@@ -625,7 +625,14 @@ class FolgezettelView extends ItemView {
         zidEl.title = `${node.zid} — ZID duplicado`;
       }
 
-      self.createEl('span', { text: ` ${node.file.basename}`, cls: 'fzz-title' });
+      const titleSpan = self.createEl('span', { text: ` ${node.file.basename}`, cls: 'fzz-title' });
+      // Truncate long note names with ellipsis
+      titleSpan.style.display = 'inline-block';
+      titleSpan.style.maxWidth = '9em';
+      titleSpan.style.overflow = 'hidden';
+      titleSpan.style.textOverflow = 'ellipsis';
+      titleSpan.style.whiteSpace = 'nowrap';
+      titleSpan.style.verticalAlign = 'middle';
 
       // Acción a la derecha: crear nueva rama desde este nodo (icono corner-down-right)
       try {
@@ -633,6 +640,19 @@ class FolgezettelView extends ItemView {
         if (!/^\d+$/.test(node.zid)) {
           const actions = self.createEl('div', { cls: 'fzz-actions' });
           actions.style.marginLeft = 'auto';
+          // Hide actions by default; they become visible when the row is hovered
+          actions.style.opacity = '0';
+          actions.style.transition = 'opacity 0.15s ease';
+          actions.style.pointerEvents = 'none';
+          // Toggle visibility only when hovering the row itself (not its children)
+          self.onmouseenter = () => {
+            actions.style.opacity = '1';
+            actions.style.pointerEvents = 'auto';
+          };
+          self.onmouseleave = () => {
+            actions.style.opacity = '0';
+            actions.style.pointerEvents = 'none';
+          };
 
           // Leftmost small circular button: move-down (create footnote)
           const btnFootnote = actions.createEl('button', { cls: 'fzz-action-btn' });

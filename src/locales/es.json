@@ -30,10 +30,10 @@
   "confirm.removeZid": "Eliminar ZID {zid} de \"{name}\"? Esta acción no puede deshacerse.",
   "note.basename": "Nota {zid}",
   "note.untitled": "Sin título",
-  "action.createArea": "Crear nueva área…",
-  "action.createBranch": "Crear nota rama…",
+  "action.createArea": "Crear nueva área",
+  "action.createBranch": "Crear nota rama",
   "action.createFootnote": "Crear nota al pie",
-  "action.insertOrNext": "Crear insertada/siguiente",
+  "action.insertOrNext": "Crear nota siguiente",
   "command.reloadView": "Recargar vista",
   "notice.viewReloaded": "Vista recargada"
 }

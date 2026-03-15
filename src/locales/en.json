@@ -30,10 +30,10 @@
   "confirm.removeZid": "Remove ZID {zid} from \"{name}\"? This cannot be undone.",
   "note.basename": "Note {zid}",
   "note.untitled": "Untitled",
-  "action.createArea": "Create new area…",
-  "action.createBranch": "Create branch note…",
+  "action.createArea": "Create new area",
+  "action.createBranch": "Create branch note",
   "action.createFootnote": "Create footnote",
-  "action.insertOrNext": "Create inserted/next note",
+  "action.insertOrNext": "Create next note",
   "command.reloadView": "Reload view",
   "notice.viewReloaded": "View reloaded"
 }
