@@ -525,62 +525,7 @@ class FolgezettelView extends ItemView {
       self.oncontextmenu = (event) => {
         event.preventDefault();
         const menu = new Menu(this.app);
-        menu.addItem((item) => {
-          item.setTitle(this.plugin.i18n.t('menu.createNext'));
-          item.setIcon('arrow-right');
-          item.onClick(async () => this.createZettel(node, 'next'));
-        });
-        menu.addItem((item) => {
-          item.setTitle(this.plugin.i18n.t('menu.assignNext'));
-          item.setIcon('link');
-          item.onClick(async () => this.assignZettel(node, 'next'));
-        });
-        menu.addSeparator();
-        menu.addSeparator();
-        menu.addItem((item) => {
-          item.setTitle(this.plugin.i18n.t('menu.createInserted'));
-          item.setIcon('insert');
-          item.onClick(async () => this.createZettel(node, 'inserted'));
-        });
-        menu.addItem((item) => {
-          item.setTitle(this.plugin.i18n.t('menu.assignInserted'));
-          item.setIcon('link');
-          item.onClick(async () => this.assignZettel(node, 'inserted'));
-        });
-        menu.addSeparator();
-        menu.addItem((item) => {
-          item.setTitle(this.plugin.i18n.t('menu.createBranch'));
-          item.setIcon('split');
-          item.onClick(async () => this.createZettel(node, 'branch'));
-        });
-        menu.addItem((item) => {
-          item.setTitle(this.plugin.i18n.t('menu.assignBranch'));
-          item.setIcon('link');
-          item.onClick(async () => this.assignZettel(node, 'branch'));
-        });
-        menu.addSeparator();
-        menu.addItem((item) => {
-          item.setTitle(this.plugin.i18n.t('menu.createFootnote'));
-          item.setIcon('down-arrow');
-          item.onClick(async () => this.createZettel(node, 'footnote'));
-        });
-        menu.addItem((item) => {
-          item.setTitle(this.plugin.i18n.t('menu.assignFootnote'));
-          item.setIcon('link');
-          item.onClick(async () => this.assignZettel(node, 'footnote'));
-        });
-        menu.addSeparator();
-        menu.addItem((item) => {
-          item.setTitle(this.plugin.i18n.t('menu.createDeep'));
-          item.setIcon('down-arrow');
-          item.onClick(async () => this.createZettel(node, 'deep'));
-        });
-        menu.addItem((item) => {
-          item.setTitle(this.plugin.i18n.t('menu.assignDeep'));
-          item.setIcon('link');
-          item.onClick(async () => this.assignZettel(node, 'deep'));
-        });
-        menu.addSeparator();
+        // menu.addSeparator();
         menu.addItem((item) => {
           item.setTitle(this.plugin.i18n.t('menu.removeZid'));
           item.setIcon('trash');
@@ -850,7 +795,7 @@ class ZidAssignModal extends FuzzySuggestModal<TFile> {
     this.newZid = newZid;
     this.onChoose = onChoose;
     if (placeholder) this.setPlaceholder(placeholder);
-    else this.setPlaceholder(`Buscar nota sin ZID para asignarle ${newZid}…`);
+    else this.setPlaceholder(new I18n('auto').t('modal.assignPlaceholder', { zid: newZid }));
   }
 
   getItems(): TFile[] {
