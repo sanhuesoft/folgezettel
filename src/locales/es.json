@@ -32,6 +32,8 @@
   "note.untitled": "Sin título",
   "action.createArea": "Crear nueva área…",
   "action.createBranch": "Crear nota rama…",
+  "action.createFootnote": "Crear nota al pie",
+  "action.insertOrNext": "Crear insertada/siguiente",
   "command.reloadView": "Recargar vista",
   "notice.viewReloaded": "Vista recargada"
 }

@@ -32,6 +32,8 @@
   "note.untitled": "Untitled",
   "action.createArea": "Create new area…",
   "action.createBranch": "Create branch note…",
+  "action.createFootnote": "Create footnote",
+  "action.insertOrNext": "Create inserted/next note",
   "command.reloadView": "Reload view",
   "notice.viewReloaded": "View reloaded"
 }

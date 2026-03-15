@@ -317,17 +317,21 @@ class FolgezettelView extends ItemView {
         const last = node.zid.slice(-1);
         const nextLetter = incChar(last);
         const baseNext = `${node.zid.slice(0, -1)}${nextLetter}`;
-        // Prefer using next sibling letter + '1' if that sibling exists or is free
-        let candidate = `${baseNext}1`;
-        if (!exists(candidate)) {
-          // If it's free we can use it; otherwise fallback to append number to current
-          newZid = candidate;
+        // Prefer creating the sibling without numeric suffix (e.g. 2.2b) if free,
+        // otherwise try baseNext + '1', otherwise append numeric suffix to current.
+        if (!exists(baseNext)) {
+          newZid = baseNext;
         } else {
-          let idx = 1;
-          newZid = `${node.zid}${idx}`;
-          while (exists(newZid)) {
-            idx += 1;
+          let candidate = `${baseNext}1`;
+          if (!exists(candidate)) {
+            newZid = candidate;
+          } else {
+            let idx = 1;
             newZid = `${node.zid}${idx}`;
+            while (exists(newZid)) {
+              idx += 1;
+              newZid = `${node.zid}${idx}`;
+            }
           }
         }
       } else {
@@ -468,33 +472,30 @@ class FolgezettelView extends ItemView {
       for (let i = it.zid.length - 1; i > 0; i -= 1) {
         const candidate = it.zid.slice(0, i);
         if (!nodeMap[candidate]) continue;
-        const suffix = it.zid.slice(candidate.length);
+        // Character immediately after candidate
+        const nextChar = it.zid.charAt(i);
+        const suffix = it.zid.slice(i);
 
-        // 1) If suffix starts with configured separator -> parent
-        if (suffix.startsWith(sepChar)) {
+        // 1) If the next character is the configured separator -> parent
+        if (nextChar === sepChar) {
           parentZid = candidate;
           break;
         }
 
         // 2) If suffix begins with one or more uppercase letters -> child (deeper level)
-        if (/^[A-Z]+/.test(suffix)) {
+        if (/^[A-Z]/.test(suffix)) {
           parentZid = candidate;
           break;
         }
 
-        // 3) If suffix is purely digits -> child of candidate (numeric deep under uppercase or similar)
-        if (/^\d+$/.test(suffix)) {
+        // 3) If suffix is purely digits and the candidate ends with uppercase -> numeric child of uppercase (e.g., 1.1A1)
+        if (/^\d+$/.test(suffix) && /[A-Z]$/.test(candidate)) {
           parentZid = candidate;
           break;
         }
 
-        // 4) Inserted notes pattern: candidate + digits + lowercase (e.g., parent '1' and zid '1.1a')
-        if (/^\d+[a-z]+$/.test(suffix)) {
-          parentZid = candidate;
-          break;
-        }
-
-        // 5) If suffix is lowercase only but candidate ends with uppercase (e.g., 1.1A -> 1.1Aa)
+        // 4) If suffix is lowercase but the candidate itself ends with uppercase,
+        //    then it's a child of the uppercase node (e.g., 1.1A -> 1.1Aa)
         if (/^[a-z]+$/.test(suffix) && /[A-Z]$/.test(candidate)) {
           parentZid = candidate;
           break;
@@ -632,6 +633,79 @@ class FolgezettelView extends ItemView {
         if (!/^\d+$/.test(node.zid)) {
           const actions = self.createEl('div', { cls: 'fzz-actions' });
           actions.style.marginLeft = 'auto';
+
+          // Leftmost small circular button: move-down (create footnote)
+          const btnFootnote = actions.createEl('button', { cls: 'fzz-action-btn' });
+          btnFootnote.setAttr('aria-label', this.plugin.i18n.t('action.createFootnote'));
+          btnFootnote.style.width = '16px';
+          btnFootnote.style.height = '16px';
+          btnFootnote.style.padding = '2px';
+          btnFootnote.style.border = '0';
+          btnFootnote.style.borderRadius = '50%';
+          btnFootnote.style.display = 'inline-flex';
+          btnFootnote.style.alignItems = 'center';
+          btnFootnote.style.justifyContent = 'center';
+          btnFootnote.style.background = 'transparent';
+          btnFootnote.style.color = 'var(--text-muted, currentColor)';
+          setIcon(btnFootnote, 'move-down');
+          const svgFoot = btnFootnote.querySelector('svg');
+          if (svgFoot) {
+            svgFoot.setAttribute('width', '12');
+            svgFoot.setAttribute('height', '12');
+          }
+          btnFootnote.onclick = async (e) => {
+            e.stopPropagation();
+            const newZid = await this.computeNewZid(node, 'footnote');
+            const baseName = this.plugin.i18n.t('note.untitled');
+            let fileName = baseName;
+            let idx = 1;
+            while (this.app.vault.getFiles().some((f) => f.basename === fileName)) {
+              fileName = `${baseName} ${idx}`;
+              idx += 1;
+            }
+            const content = `---\nzid: ${newZid}\n---\n`;
+            const newFile = await this.app.vault.create(`${fileName}.md`, content);
+            try {
+              await this.app.workspace.getLeaf(false).openFile(newFile);
+            } catch (_e) {
+              await this.app.workspace.getLeaf(true).openFile(newFile);
+            }
+            this.refreshViews();
+          };
+
+          // Middle button: move-right (creates next or inserted depending on position)
+          const btnInsertOrNext = actions.createEl('button', { cls: 'fzz-action-btn' });
+          btnInsertOrNext.setAttr('aria-label', this.plugin.i18n.t('action.insertOrNext'));
+          btnInsertOrNext.style.width = '16px';
+          btnInsertOrNext.style.height = '16px';
+          btnInsertOrNext.style.padding = '2px';
+          btnInsertOrNext.style.border = '0';
+          btnInsertOrNext.style.borderRadius = '50%';
+          btnInsertOrNext.style.display = 'inline-flex';
+          btnInsertOrNext.style.alignItems = 'center';
+          btnInsertOrNext.style.justifyContent = 'center';
+          btnInsertOrNext.style.background = 'transparent';
+          btnInsertOrNext.style.color = 'var(--text-muted, currentColor)';
+          setIcon(btnInsertOrNext, 'move-right');
+          const svgInsert = btnInsertOrNext.querySelector('svg');
+          if (svgInsert) {
+            svgInsert.setAttribute('width', '12');
+            svgInsert.setAttribute('height', '12');
+          }
+          btnInsertOrNext.onclick = async (e) => {
+            e.stopPropagation();
+            // Determine siblings for node to see if it's last in its level
+            const siblings = node.parent ? node.parent.children : Object.values(roots);
+            const idx = siblings.findIndex((s) => s.zid === node.zid);
+            const isLast = idx === siblings.length - 1;
+            if (isLast) {
+              await this.createZettel(node, 'next');
+            } else {
+              await this.createZettel(node, 'inserted');
+            }
+          };
+
+          // Right small circular button: corner-down-right (creates branch)
           const btn = actions.createEl('button', { cls: 'fzz-action-btn' });
           btn.setAttr('aria-label', this.plugin.i18n.t('action.createBranch'));
           // Small circular icon button styled via inline styles to match theme colors
