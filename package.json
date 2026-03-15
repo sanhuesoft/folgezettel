@@ -1,5 +1,5 @@
 {
-  "name": "obsidian-folgezettel",
+  "name": "folgezettel",
   "version": "0.1.0",
   "description": "Build a Folgezettel based on the zid property in your notes' frontmatter",
   "main": "main.js",
