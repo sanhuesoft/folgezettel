@@ -66,27 +66,29 @@ export default class FolgezettelPlugin extends Plugin {
     this.i18n = new I18n(this.settings.lang);
     try {
       this.refreshViews();
-    } catch (_e) {}
+    } catch (_e) {
+      console.error('Error refreshing views after saving settings:', _e);
+    }
   }
   async onload() {
     await this.loadSettings();
     this.registerView(VIEW_TYPE, (leaf) => new FolgezettelView(leaf, this));
 
     this.addCommand({
-      id: 'open-folgezettel',
+      id: 'open-fz',
       name: this.i18n.t('command.open'),
       callback: () => this.activateView(),
     });
 
     this.addCommand({
-      id: 'reload-folgezettel-view',
+      id: 'reload-fz-view',
       name: this.i18n.t('command.reloadView'),
       callback: () => {
         try {
           this.refreshViews();
           new Notice(this.i18n.t('notice.viewReloaded'));
         } catch (_e) {
-          // Silencioso: no bloquear si algo falla
+          console.error('Error refreshing views:', _e);
         }
       },
     });
@@ -159,7 +161,7 @@ class FolgezettelView extends ItemView {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') return parsed;
     } catch (_e) {
-      // Ignore invalid persisted state
+      console.error('Error loading expanded state:', _e);
     }
     return {};
   }
@@ -698,13 +700,14 @@ class FolgezettelView extends ItemView {
           };
         }
       } catch (_e) {
-        // Si setIcon falla por alguna razón, ignorar y no añadir la acción
+        console.error('Error creating action buttons:', _e);
       }
 
       self.onclick = async () => {
         try {
           await this.app.workspace.getLeaf(false).openFile(node.file);
         } catch (_e) {
+          console.error('Error opening file:', _e);
           await this.app.workspace.getLeaf(true).openFile(node.file);
         }
       };
@@ -768,12 +771,13 @@ class FolgezettelView extends ItemView {
         try {
           await this.app.workspace.getLeaf(false).openFile(newFile);
         } catch (_e) {
+          console.error('Error opening new area file:', _e);
           await this.app.workspace.getLeaf(true).openFile(newFile);
         }
         this.refreshViews();
       };
     } catch (e) {
-      // No bloquear la renderización en caso de error al calcular el área
+      console.error('Error creating new area:', e);
     }
   }
 }
