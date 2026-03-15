@@ -27,10 +27,20 @@
 .fzz-zid {
   font-family: monospace;
   font-size: 1em;
-  min-width: 120px;
+  min-width: 30px;
   margin-right: 8px;
 }
+
+/* Truncar ZID largos y mostrar tooltip con el valor completo */
+.fzz-zid {
+  display: inline-block;
+  max-width: 6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
 .fzz-title {
   font-size: 1em;
-}
 }
