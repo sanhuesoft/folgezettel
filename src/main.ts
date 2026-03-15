@@ -1,11 +1,13 @@
 import { App, FuzzySuggestModal, ItemView, Plugin, WorkspaceLeaf, TFile, Notice, Menu } from 'obsidian';
+import { DEFAULT_SETTINGS, FolgezettelSettingTab, PluginSettings } from './settings';
 
 const VIEW_TYPE = 'folgezettel-view';
 
 type Token = { type: 'num' | 'alpha'; value: number };
 
 function tokenize(zid: string): Token[] {
-  zid = String(zid).replace(/\./g, '');
+  // Remove common separator characters so tokens compare independent of the chosen separator
+  zid = String(zid).replace(/[.,\/]/g, '');
   const parts = zid.match(/(\d+|[a-zA-Z]+)/g) || [];
   return parts.map((p) => {
     if (/^\d+$/.test(p)) return { type: 'num', value: parseInt(p, 10) };
@@ -35,7 +37,17 @@ function compareZid(a: string, b: string) {
 }
 
 export default class FolgezettelPlugin extends Plugin {
+  settings: PluginSettings = DEFAULT_SETTINGS;
+
+  async loadSettings() {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+  }
+
+  async saveSettings() {
+    await this.saveData(this.settings);
+  }
   async onload() {
+    await this.loadSettings();
     this.registerView(VIEW_TYPE, (leaf) => new FolgezettelView(leaf, this));
 
     this.addCommand({
@@ -45,6 +57,8 @@ export default class FolgezettelPlugin extends Plugin {
     });
 
     this.app.workspace.onLayoutReady(() => this.activateView());
+
+    this.addSettingTab(new FolgezettelSettingTab(this.app, this));
 
     this.registerEvent(this.app.vault.on('modify', () => this.refreshViews()));
     this.registerEvent(this.app.vault.on('create', () => this.refreshViews()));
@@ -188,11 +202,12 @@ class FolgezettelView extends ItemView {
     }
 
     if (type === 'deep') {
+      const sep = this.plugin.settings?.separator || '.';
       let idx = 1;
-      newZid = `${node.zid}.${idx}`;
+      newZid = `${node.zid}${sep}${idx}`;
       while (zids.includes(newZid)) {
         idx += 1;
-        newZid = `${node.zid}.${idx}`;
+        newZid = `${node.zid}${sep}${idx}`;
       }
     }
 
@@ -307,9 +322,10 @@ class FolgezettelView extends ItemView {
       let parentZid = '';
       for (let i = it.zid.length - 1; i > 0; i -= 1) {
         const candidate = it.zid.slice(0, i);
-        // Considerar relación padre-hijo solo si el carácter siguiente es un punto (deep note)
+        // Considerar relación padre-hijo solo si el carácter siguiente es el separador configurado
         // Esto evita que sufijos laterales tipo '1.1a' se conviertan en hijos de '1.1'
-        if (nodeMap[candidate] && it.zid.charAt(i) === '.') {
+        const sepChar = this.plugin.settings?.separator || '.';
+        if (nodeMap[candidate] && it.zid.charAt(i) === sepChar) {
           parentZid = candidate;
           break;
         }
