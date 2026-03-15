@@ -24,5 +24,7 @@
   "notice.zidRemoved": "ZID removed from \"{name}\"",
   "notice.duplicatedZids": "Duplicated ZIDs detected: {list}",
   "confirm.removeZid": "Remove ZID {zid} from \"{name}\"? This cannot be undone.",
-  "note.basename": "Note {zid}"
+  "note.basename": "Note {zid}",
+  "command.reloadView": "Reload view",
+  "notice.viewReloaded": "View reloaded"
 }

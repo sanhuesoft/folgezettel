@@ -63,6 +63,18 @@ export default class FolgezettelPlugin extends Plugin {
       callback: () => this.activateView(),
     });
 
+    this.addCommand({
+      id: 'reload-folgezettel-view',
+      name: this.i18n.t('command.reloadView'),
+      callback: () => {
+        try {
+          this.refreshViews();
+          new Notice(this.i18n.t('notice.viewReloaded'));
+        } catch (_e) {
+          // Silencioso: no bloquear si algo falla
+        }
+      },
+    });
     this.app.workspace.onLayoutReady(() => this.activateView());
 
     this.addSettingTab(new FolgezettelSettingTab(this.app, this));
