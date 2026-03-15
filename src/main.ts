@@ -295,8 +295,8 @@ class FolgezettelView extends ItemView {
 
     const expanded = this.expandedState;
 
-    const renderNode = (node: TreeNode, depth: number) => {
-      const treeItem = this.listEl.createEl('div', { cls: 'tree-item' });
+    const renderNode = (node: TreeNode, depth: number, container: HTMLElement = this.listEl) => {
+      const treeItem = container.createEl('div', { cls: 'tree-item' });
       treeItem.style.marginLeft = `${depth * 16}px`;
       const self = treeItem.createEl('div', { cls: 'tree-item-self' });
 
@@ -384,7 +384,9 @@ class FolgezettelView extends ItemView {
       };
 
       if (node.children.length > 0 && expanded[node.zid]) {
-        for (const child of node.children) renderNode(child, depth + 1);
+        // Crear contenedor para hijos que muestra la línea vertical
+        const childrenContainer = treeItem.createEl('div', { cls: 'tree-item-children' });
+        for (const child of node.children) renderNode(child, depth + 1, childrenContainer);
       }
     };
 
