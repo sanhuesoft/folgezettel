@@ -681,22 +681,11 @@ class FolgezettelView extends ItemView {
           }
           btnFootnote.onclick = async (e) => {
             e.stopPropagation();
-            const newZid = await this.computeNewZid(node, 'footnote');
-            const baseName = this.plugin.i18n.t('note.untitled');
-            let fileName = baseName;
-            let idx = 1;
-            while (this.app.vault.getFiles().some((f) => f.basename === fileName)) {
-              fileName = `${baseName} ${idx}`;
-              idx += 1;
+            if (e.shiftKey) {
+              await this.assignZettel(node, 'footnote');
+              return;
             }
-            const content = `---\nzid: ${newZid}\n---\n`;
-            const newFile = await this.app.vault.create(`${fileName}.md`, content);
-            try {
-              await this.app.workspace.getLeaf(false).openFile(newFile);
-            } catch (_e) {
-              await this.app.workspace.getLeaf(true).openFile(newFile);
-            }
-            this.refreshViews();
+            await this.createZettel(node, 'footnote');
           };
 
           // Middle button: move-right (creates next or inserted depending on position)
@@ -725,9 +714,11 @@ class FolgezettelView extends ItemView {
             const idx = siblings.findIndex((s) => s.zid === node.zid);
             const isLast = idx === siblings.length - 1;
             if (isLast) {
-              await this.createZettel(node, 'next');
+              if (e.shiftKey) await this.assignZettel(node, 'next');
+              else await this.createZettel(node, 'next');
             } else {
-              await this.createZettel(node, 'inserted');
+              if (e.shiftKey) await this.assignZettel(node, 'inserted');
+              else await this.createZettel(node, 'inserted');
             }
           };
 
@@ -754,22 +745,11 @@ class FolgezettelView extends ItemView {
           }
           btn.onclick = async (e) => {
             e.stopPropagation();
-            const newZid = await this.computeNewZid(node, 'branch');
-            const baseName = this.plugin.i18n.t('note.untitled');
-            let fileName = baseName;
-            let idx = 1;
-            while (this.app.vault.getFiles().some((f) => f.basename === fileName)) {
-              fileName = `${baseName} ${idx}`;
-              idx += 1;
+            if (e.shiftKey) {
+              await this.assignZettel(node, 'branch');
+            } else {
+              await this.createZettel(node, 'branch');
             }
-            const content = `---\nzid: ${newZid}\n---\n`;
-            const newFile = await this.app.vault.create(`${fileName}.md`, content);
-            try {
-              await this.app.workspace.getLeaf(false).openFile(newFile);
-            } catch (_e) {
-              await this.app.workspace.getLeaf(true).openFile(newFile);
-            }
-            this.refreshViews();
           };
         }
       } catch (_e) {
