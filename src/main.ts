@@ -609,16 +609,6 @@ class FolgezettelView extends ItemView {
           // Leftmost small circular button: move-down (create footnote)
           const btnFootnote = actions.createEl('button', { cls: 'fzz-action-btn' });
           btnFootnote.setAttr('aria-label', this.plugin.i18n.t('action.createFootnote'));
-          btnFootnote.style.width = '16px';
-          btnFootnote.style.height = '16px';
-          btnFootnote.style.padding = '2px';
-          btnFootnote.style.border = '0';
-          btnFootnote.style.borderRadius = '50%';
-          btnFootnote.style.display = 'inline-flex';
-          btnFootnote.style.alignItems = 'center';
-          btnFootnote.style.justifyContent = 'center';
-          btnFootnote.style.background = 'transparent';
-          btnFootnote.style.color = 'var(--text-muted, currentColor)';
           setIcon(btnFootnote, 'move-down');
           btnFootnote.onclick = async (e) => {
             e.stopPropagation();
@@ -632,16 +622,6 @@ class FolgezettelView extends ItemView {
           // Middle button: move-right (creates next or inserted depending on position)
           const btnInsertOrNext = actions.createEl('button', { cls: 'fzz-action-btn' });
           btnInsertOrNext.setAttr('aria-label', this.plugin.i18n.t('action.insertOrNext'));
-          btnInsertOrNext.style.width = '16px';
-          btnInsertOrNext.style.height = '16px';
-          btnInsertOrNext.style.padding = '2px';
-          btnInsertOrNext.style.border = '0';
-          btnInsertOrNext.style.borderRadius = '50%';
-          btnInsertOrNext.style.display = 'inline-flex';
-          btnInsertOrNext.style.alignItems = 'center';
-          btnInsertOrNext.style.justifyContent = 'center';
-          btnInsertOrNext.style.background = 'transparent';
-          btnInsertOrNext.style.color = 'var(--text-muted, currentColor)';
           setIcon(btnInsertOrNext, 'move-right');
           btnInsertOrNext.onclick = async (e) => {
             e.stopPropagation();
@@ -661,17 +641,7 @@ class FolgezettelView extends ItemView {
           // Right small circular button: corner-down-right (creates branch)
           const btn = actions.createEl('button', { cls: 'fzz-action-btn' });
           btn.setAttr('aria-label', this.plugin.i18n.t('action.createBranch'));
-          // Small circular icon button styled via inline styles to match theme colors
-          btn.style.width = '16px';
-          btn.style.height = '16px';
-          btn.style.padding = '2px';
-          btn.style.border = '0';
-          btn.style.borderRadius = '50%';
-          btn.style.display = 'inline-flex';
-          btn.style.alignItems = 'center';
-          btn.style.justifyContent = 'center';
-          btn.style.background = 'transparent';
-          btn.style.color = 'var(--text-muted, currentColor)';
+          // Small circular icon button: styling moved to CSS via `.fzz-action-btn`
           setIcon(btn, 'corner-down-right');
           btn.onclick = async (e) => {
             e.stopPropagation();
@@ -716,15 +686,7 @@ class FolgezettelView extends ItemView {
 
       // Crear un nodo visual con la misma estructura que renderNode
       const treeItem = this.listEl.createEl('div', { cls: 'tree-item create-area' });
-      treeItem.style.marginLeft = `${0 * 16}px`;
-      treeItem.style.marginTop = '8px';
       const self = treeItem.createEl('div', { cls: 'tree-item-self' });
-      self.style.cursor = 'pointer';
-      self.style.minHeight = '24px';
-      self.style.height = '24px';
-      self.style.display = 'flex';
-      self.style.alignItems = 'center';
-      self.style.gap = '8px';
 
       // Zid area (icono plus en el lugar del zid)
       const zidEl = self.createEl('span', { cls: 'fzz-zid' });
@@ -737,7 +699,7 @@ class FolgezettelView extends ItemView {
         text: ` ${this.plugin.i18n.t('action.createArea')}`,
         cls: 'fzz-title',
       });
-      titleEl.style.fontStyle = 'italic';
+      // Title italics handled by CSS for the create-area: .tree-item.create-area .fzz-title
 
       self.onclick = async () => {
         const zid = String(nextArea);
@@ -811,9 +773,6 @@ class ConfirmModal extends Modal {
     const { contentEl } = this;
     contentEl.createEl('h3', { text: this.message });
     const btnRow = contentEl.createEl('div', { cls: 'confirm-modal-row' });
-    btnRow.style.display = 'flex';
-    btnRow.style.gap = '8px';
-    btnRow.style.marginTop = '12px';
 
     const btnOk = btnRow.createEl('button', { text: 'OK', cls: 'mod-cta' });
     const btnCancel = btnRow.createEl('button', { text: 'Cancel' });

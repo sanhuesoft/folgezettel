@@ -8,6 +8,22 @@
   margin-left: 0 !important;
 }
 
+/* Forzar eliminación de guías/lineas verticales que algunos temas añaden
+   usando bordes o pseudo-elementos. */
+.tree-item-children,
+.fzz-list.tree-item-children {
+  border-left: none !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+.tree-item-children::before,
+.tree-item-children::after,
+.fzz-list.tree-item-children::before,
+.fzz-list.tree-item-children::after {
+  display: none !important;
+  content: none !important;
+}
+
 .fzz-toggle {
   width: 18px;
   text-align: center;
@@ -118,18 +134,18 @@
 
 /* Depth helper classes to avoid setting inline styles in the view code */
 .tree-item.depth-0 { margin-left: 0px !important; }
-.tree-item.depth-1 { margin-left: 16px !important; }
-.tree-item.depth-2 { margin-left: 32px !important; }
-.tree-item.depth-3 { margin-left: 48px !important; }
-.tree-item.depth-4 { margin-left: 64px !important; }
-.tree-item.depth-5 { margin-left: 80px !important; }
-.tree-item.depth-6 { margin-left: 96px !important; }
-.tree-item.depth-7 { margin-left: 112px !important; }
-.tree-item.depth-8 { margin-left: 128px !important; }
-.tree-item.depth-9 { margin-left: 144px !important; }
-.tree-item.depth-10 { margin-left: 160px !important; }
-.tree-item.depth-11 { margin-left: 176px !important; }
-.tree-item.depth-12 { margin-left: 192px !important; }
+.tree-item.depth-1 { margin-left: 8px !important; }
+.tree-item.depth-2 { margin-left: 16px !important; }
+.tree-item.depth-3 { margin-left: 24px !important; }
+.tree-item.depth-4 { margin-left: 32px !important; }
+.tree-item.depth-5 { margin-left: 40px !important; }
+.tree-item.depth-6 { margin-left: 48px !important; }
+.tree-item.depth-7 { margin-left: 56px !important; }
+.tree-item.depth-8 { margin-left: 64px !important; }
+.tree-item.depth-9 { margin-left: 72px !important; }
+.tree-item.depth-10 { margin-left: 80px !important; }
+.tree-item.depth-11 { margin-left: 88px !important; }
+.tree-item.depth-12 { margin-left: 96px !important; }
 
 /* Confirm modal row styling (was inline in ConfirmModal) */
 .confirm-modal-row { display: flex; gap: 8px; margin-top: 12px; }
