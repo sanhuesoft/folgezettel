@@ -1,4 +1,4 @@
-import { App, FuzzySuggestModal, ItemView, Plugin, WorkspaceLeaf, TFile, Notice, Menu, setIcon } from 'obsidian';
+import { App, FuzzySuggestModal, ItemView, Plugin, WorkspaceLeaf, TFile, Notice, Menu, setIcon, Modal } from 'obsidian';
 import { DEFAULT_SETTINGS, FolgezettelSettingTab, PluginSettings } from './settings';
 import { I18n } from './i18n';
 
@@ -8,7 +8,7 @@ type Token = { type: 'num' | 'upper' | 'lower' | 'sep'; value: number | string }
 
 function tokenize(zid: string): Token[] {
   const s = String(zid);
-  const parts = s.match(/(\d+|[A-Z]+|[a-z]+|[.,\/])/g) || [];
+  const parts = s.match(new RegExp('(\\d+|[A-Z]+|[a-z]+|[.,/])', 'g')) || [];
   return parts.map((p) => {
     if (/^\d+$/.test(p)) return { type: 'num', value: parseInt(p, 10) };
     if (/^[A-Z]+$/.test(p)) return { type: 'upper', value: p };
@@ -102,10 +102,6 @@ export default class FolgezettelPlugin extends Plugin {
     this.registerEvent(this.app.vault.on('rename', () => this.refreshViews()));
   }
 
-  onunload() {
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE);
-  }
-
   async activateView() {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE);
     await this.app.workspace.getRightLeaf(false).setViewState({ type: VIEW_TYPE, active: true });
@@ -115,7 +111,11 @@ export default class FolgezettelPlugin extends Plugin {
 
   refreshViews() {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
-    leaves.forEach((leaf) => (leaf.view as FolgezettelView).renderList());
+    leaves.forEach((leaf) =>
+      (leaf.view as FolgezettelView)
+        .renderList()
+        .catch((e) => console.error('Error rendering folgezettel view:', e))
+    );
   }
 }
 
@@ -146,19 +146,30 @@ class FolgezettelView extends ItemView {
   async onOpen() {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
-    this.listEl = container.createEl('div', { cls: 'fzz-list tree-item-children' });
+    this.listEl = container.createEl('div', { cls: 'fz-list fz-tree-item-children' });
     await this.renderList();
   }
 
   async onClose() {
-    this.saveExpandedState();
+    await this.saveExpandedState();
   }
 
   private loadExpandedState(): Record<string, boolean> {
     try {
-      const raw = localStorage.getItem('fzz-expanded-state');
+      const appAny = this.app as any;
+      const raw =
+        typeof appAny.loadLocalStorage === 'function'
+          ? appAny.loadLocalStorage('fz-expanded-state')
+          : localStorage.getItem('fz-expanded-state');
+
+      // If the API returned a Promise (unexpected here), bail out to empty state.
+      if (raw && typeof (raw as any).then === 'function') {
+        console.warn('loadLocalStorage returned a Promise; using empty expanded state');
+        return {};
+      }
+
       if (!raw) return {};
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(raw as string);
       if (parsed && typeof parsed === 'object') return parsed;
     } catch (_e) {
       console.error('Error loading expanded state:', _e);
@@ -166,8 +177,19 @@ class FolgezettelView extends ItemView {
     return {};
   }
 
-  private saveExpandedState() {
-    localStorage.setItem('fzz-expanded-state', JSON.stringify(this.expandedState));
+  private async saveExpandedState(): Promise<void> {
+    try {
+      const raw = JSON.stringify(this.expandedState);
+      const appAny = this.app as any;
+      if (typeof appAny.saveLocalStorage === 'function') {
+        const res = appAny.saveLocalStorage('fz-expanded-state', raw);
+        if (res && typeof res.then === 'function') await res;
+      } else {
+        localStorage.setItem('fz-expanded-state', raw);
+      }
+    } catch (e) {
+      console.error('Error saving expanded state:', e);
+    }
   }
 
   private refreshViews() {
@@ -514,15 +536,10 @@ class FolgezettelView extends ItemView {
     const expanded = this.expandedState;
 
     const renderNode = (node: TreeNode, depth: number, container: HTMLElement = this.listEl) => {
-      const treeItem = container.createEl('div', { cls: 'tree-item' });
-      treeItem.style.marginLeft = `${depth * 16}px`;
-      const self = treeItem.createEl('div', { cls: 'tree-item-self' });
-      // Keep the visible row height constant to avoid layout glitches when sidebar is narrow
-      self.style.minHeight = '24px';
-      self.style.height = '24px';
-      self.style.display = 'flex';
-      self.style.alignItems = 'center';
-      self.style.gap = '8px';
+      const treeItem = container.createEl('div', { cls: `fz-tree-item` });
+      const depthClass = `depth-${Math.min(depth, 12)}`;
+      treeItem.classList.add(depthClass);
+      const self = treeItem.createEl('div', { cls: 'fz-tree-item-self' });
 
       self.oncontextmenu = (event) => {
         event.preventDefault();
@@ -532,9 +549,10 @@ class FolgezettelView extends ItemView {
           item.setTitle(this.plugin.i18n.t('menu.removeZid'));
           item.setIcon('trash');
           item.onClick(async () => {
-            const ok = confirm(
+            const ok = await new ConfirmModal(
+              this.app,
               this.plugin.i18n.t('confirm.removeZid', { zid: node.zid, name: node.file.basename })
-            );
+            ).openAndWait();
             if (!ok) return;
             await this.removeZidFromFile(node.file);
           });
@@ -544,15 +562,14 @@ class FolgezettelView extends ItemView {
 
       if (node.children.length > 0) {
         if (expanded[node.zid] === undefined) expanded[node.zid] = true;
-        const arrow = self.createEl('div', { cls: 'tree-item-icon collapse-icon' });
+        const arrow = self.createEl('div', { cls: 'fz-tree-item-icon collapse-icon' });
         arrow.classList.add(expanded[node.zid] ? 'is-collapsed' : 'is-expanded');
 
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('viewBox', '0 0 16 16');
         svg.setAttribute('width', '16');
         svg.setAttribute('height', '16');
-        svg.style.transition = 'transform 0.2s';
-        svg.style.transform = expanded[node.zid] ? 'rotate(90deg)' : 'rotate(0deg)';
+        // Rotation/transition handled via CSS classes (.is-collapsed/.is-expanded)
 
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', 'M6 4l4 4-4 4');
@@ -562,70 +579,39 @@ class FolgezettelView extends ItemView {
         svg.appendChild(path);
         arrow.appendChild(svg);
 
-        arrow.onclick = (e) => {
-          e.stopPropagation();
-          expanded[node.zid] = !expanded[node.zid];
-          this.saveExpandedState();
-          this.renderList();
+        arrow.onclick = async (e) => {
+          try {
+            e.stopPropagation();
+            expanded[node.zid] = !expanded[node.zid];
+            await this.saveExpandedState();
+            await this.renderList();
+          } catch (err) {
+            console.error('Error toggling node expansion:', err);
+          }
         };
       }
 
-      const zidEl = self.createEl('span', { text: node.zid, cls: 'fzz-zid' });
+      const zidEl = self.createEl('span', { text: node.zid, cls: 'fz-zid' });
       // Mostrar ZID completo en tooltip; truncar visualmente via CSS
       zidEl.title = node.zid;
       if (duplicatedZids.includes(node.zid)) {
-        zidEl.style.color = 'var(--color-error, red)';
+        zidEl.classList.add('fz-zid-duplicate');
         zidEl.title = `${node.zid} — ZID duplicado`;
       }
 
-      const titleSpan = self.createEl('span', { text: ` ${node.file.basename}`, cls: 'fzz-title' });
-      // Truncate long note names with ellipsis
-      titleSpan.style.display = 'inline-block';
-      titleSpan.style.maxWidth = '9em';
-      titleSpan.style.overflow = 'hidden';
-      titleSpan.style.textOverflow = 'ellipsis';
-      titleSpan.style.whiteSpace = 'nowrap';
-      titleSpan.style.verticalAlign = 'middle';
+      const titleSpan = self.createEl('span', { text: ` ${node.file.basename}`, cls: 'fz-title' });
 
       // Acción a la derecha: crear nueva rama desde este nodo (icono corner-down-right)
       try {
         // No mostrar el botón en áreas de primer nivel (ZID numérico)
         if (!/^\d+$/.test(node.zid)) {
-          const actions = self.createEl('div', { cls: 'fzz-actions' });
-          actions.style.marginLeft = 'auto';
-          // Hide actions by default; they become visible when the row is hovered
-          actions.style.opacity = '0';
-          actions.style.transition = 'opacity 0.15s ease';
-          actions.style.pointerEvents = 'none';
-          // Toggle visibility only when hovering the row itself (not its children)
-          self.onmouseenter = () => {
-            actions.style.opacity = '1';
-            actions.style.pointerEvents = 'auto';
-          };
-          self.onmouseleave = () => {
-            actions.style.opacity = '0';
-            actions.style.pointerEvents = 'none';
-          };
+          const actions = self.createEl('div', { cls: 'fz-actions' });
+          // Visibility and pointer-events handled by CSS on hover
 
           // Leftmost small circular button: move-down (create footnote)
-          const btnFootnote = actions.createEl('button', { cls: 'fzz-action-btn' });
+          const btnFootnote = actions.createEl('button', { cls: 'fz-action-btn' });
           btnFootnote.setAttr('aria-label', this.plugin.i18n.t('action.createFootnote'));
-          btnFootnote.style.width = '16px';
-          btnFootnote.style.height = '16px';
-          btnFootnote.style.padding = '2px';
-          btnFootnote.style.border = '0';
-          btnFootnote.style.borderRadius = '50%';
-          btnFootnote.style.display = 'inline-flex';
-          btnFootnote.style.alignItems = 'center';
-          btnFootnote.style.justifyContent = 'center';
-          btnFootnote.style.background = 'transparent';
-          btnFootnote.style.color = 'var(--text-muted, currentColor)';
           setIcon(btnFootnote, 'move-down');
-          const svgFoot = btnFootnote.querySelector('svg');
-          if (svgFoot) {
-            svgFoot.setAttribute('width', '12');
-            svgFoot.setAttribute('height', '12');
-          }
           btnFootnote.onclick = async (e) => {
             e.stopPropagation();
             if (e.shiftKey) {
@@ -636,24 +622,9 @@ class FolgezettelView extends ItemView {
           };
 
           // Middle button: move-right (creates next or inserted depending on position)
-          const btnInsertOrNext = actions.createEl('button', { cls: 'fzz-action-btn' });
+          const btnInsertOrNext = actions.createEl('button', { cls: 'fz-action-btn' });
           btnInsertOrNext.setAttr('aria-label', this.plugin.i18n.t('action.insertOrNext'));
-          btnInsertOrNext.style.width = '16px';
-          btnInsertOrNext.style.height = '16px';
-          btnInsertOrNext.style.padding = '2px';
-          btnInsertOrNext.style.border = '0';
-          btnInsertOrNext.style.borderRadius = '50%';
-          btnInsertOrNext.style.display = 'inline-flex';
-          btnInsertOrNext.style.alignItems = 'center';
-          btnInsertOrNext.style.justifyContent = 'center';
-          btnInsertOrNext.style.background = 'transparent';
-          btnInsertOrNext.style.color = 'var(--text-muted, currentColor)';
           setIcon(btnInsertOrNext, 'move-right');
-          const svgInsert = btnInsertOrNext.querySelector('svg');
-          if (svgInsert) {
-            svgInsert.setAttribute('width', '12');
-            svgInsert.setAttribute('height', '12');
-          }
           btnInsertOrNext.onclick = async (e) => {
             e.stopPropagation();
             // Determine siblings for node to see if it's last in its level
@@ -670,26 +641,9 @@ class FolgezettelView extends ItemView {
           };
 
           // Right small circular button: corner-down-right (creates branch)
-          const btn = actions.createEl('button', { cls: 'fzz-action-btn' });
+          const btn = actions.createEl('button', { cls: 'fz-action-btn' });
           btn.setAttr('aria-label', this.plugin.i18n.t('action.createBranch'));
-          // Small circular icon button styled via inline styles to match theme colors
-          btn.style.width = '16px';
-          btn.style.height = '16px';
-          btn.style.padding = '2px';
-          btn.style.border = '0';
-          btn.style.borderRadius = '50%';
-          btn.style.display = 'inline-flex';
-          btn.style.alignItems = 'center';
-          btn.style.justifyContent = 'center';
-          btn.style.background = 'transparent';
-          btn.style.color = 'var(--text-muted, currentColor)';
           setIcon(btn, 'corner-down-right');
-          // Reduce SVG size if created
-          const svg = btn.querySelector('svg');
-          if (svg) {
-            svg.setAttribute('width', '12');
-            svg.setAttribute('height', '12');
-          }
           btn.onclick = async (e) => {
             e.stopPropagation();
             if (e.shiftKey) {
@@ -714,7 +668,7 @@ class FolgezettelView extends ItemView {
 
       if (expanded[node.zid]) {
         // Crear contenedor para hijos que muestra la línea vertical
-        const childrenContainer = treeItem.createEl('div', { cls: 'tree-item-children' });
+        const childrenContainer = treeItem.createEl('div', { cls: 'fz-tree-item-children' });
         for (const child of node.children) renderNode(child, depth + 1, childrenContainer);
 
         // (Removed per-level placeholder row — branch creation now via right-aligned button)
@@ -732,19 +686,11 @@ class FolgezettelView extends ItemView {
       const nextArea = maxTop + 1;
 
       // Crear un nodo visual con la misma estructura que renderNode
-      const treeItem = this.listEl.createEl('div', { cls: 'tree-item create-area' });
-      treeItem.style.marginLeft = `${0 * 16}px`;
-      treeItem.style.marginTop = '8px';
-      const self = treeItem.createEl('div', { cls: 'tree-item-self' });
-      self.style.cursor = 'pointer';
-      self.style.minHeight = '24px';
-      self.style.height = '24px';
-      self.style.display = 'flex';
-      self.style.alignItems = 'center';
-      self.style.gap = '8px';
+      const treeItem = this.listEl.createEl('div', { cls: 'fz-tree-item create-area depth-0' });
+      const self = treeItem.createEl('div', { cls: 'fz-tree-item-self' });
 
       // Zid area (icono plus en el lugar del zid)
-      const zidEl = self.createEl('span', { cls: 'fzz-zid' });
+      const zidEl = self.createEl('span', { cls: 'fz-zid' });
       // Mostrar el número correlativo donde normalmente va el ZID
       zidEl.title = String(nextArea);
       zidEl.textContent = String(nextArea);
@@ -752,9 +698,8 @@ class FolgezettelView extends ItemView {
       // Texto alineado donde va el título (en cursiva)
       const titleEl = self.createEl('span', {
         text: ` ${this.plugin.i18n.t('action.createArea')}`,
-        cls: 'fzz-title',
+        cls: 'fz-title',
       });
-      titleEl.style.fontStyle = 'italic';
 
       self.onclick = async () => {
         const zid = String(nextArea);
@@ -812,5 +757,44 @@ class ZidAssignModal extends FuzzySuggestModal<TFile> {
 
   async onChooseItem(file: TFile): Promise<void> {
     await this.onChoose(file);
+  }
+}
+
+class ConfirmModal extends Modal {
+  private message: string;
+  private resolve!: (value: boolean) => void;
+
+  constructor(app: App, message: string) {
+    super(app);
+    this.message = message;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl('h3', { text: this.message });
+    const btnRow = contentEl.createEl('div', { cls: 'confirm-modal-row' });
+
+    const btnOk = btnRow.createEl('button', { text: 'OK', cls: 'mod-cta' });
+    const btnCancel = btnRow.createEl('button', { text: 'Cancel' });
+
+    btnOk.onclick = () => this.closeAndResolve(true);
+    btnCancel.onclick = () => this.closeAndResolve(false);
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+
+  private closeAndResolve(val: boolean) {
+    this.close();
+    this.resolve(val);
+  }
+
+  openAndWait(): Promise<boolean> {
+    this.open();
+    return new Promise<boolean>((res) => {
+      this.resolve = res;
+    });
   }
 }

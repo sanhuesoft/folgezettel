@@ -29,8 +29,10 @@ export class I18n {
   t(key: string, vars?: Record<string, string | number>) {
     let s = this.strings[key] ?? key;
     if (vars) {
+      // Use split/join to avoid constructing a RegExp that requires
+      // escaping braces (which ESLint may flag as unnecessary).
       for (const k in vars) {
-        s = s.replace(new RegExp(`\{${k}\}`, 'g'), String(vars[k]));
+        s = s.split(`{${k}}`).join(String(vars[k]));
       }
     }
     return s;

@@ -4,10 +4,13 @@
   "description": "Build a Folgezettel based on the zid property in your notes' frontmatter",
   "main": "main.js",
   "scripts": {
+    "lint": "eslint src/**/*.ts",
     "build": "esbuild src/main.ts --bundle --platform=node --format=cjs --target=es2020 --outfile=main.js --minify --external:obsidian",
     "dev": "esbuild src/main.ts --bundle --platform=node --format=cjs --target=es2020 --outfile=main.js --sourcemap --watch --external:obsidian"
   },
   "devDependencies": {
-    "esbuild": "^0.18.0"
+    "esbuild": "^0.18.0",
+    "eslint": "^10.0.3",
+    "eslint-plugin-obsidianmd": "^0.1.9"
   }
 }

@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, PluginSettingTab, Setting, Plugin } from 'obsidian';
 import { I18n } from './i18n';
 
 export interface PluginSettings {
@@ -12,9 +12,9 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 };
 
 export class FolgezettelSettingTab extends PluginSettingTab {
-  plugin: any;
+  plugin: FolgezettelPluginLike;
 
-  constructor(app: App, plugin: any) {
+  constructor(app: App, plugin: FolgezettelPluginLike) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -25,7 +25,7 @@ export class FolgezettelSettingTab extends PluginSettingTab {
 
     const i18n: I18n = this.plugin.i18n || new I18n(this.plugin.settings?.lang);
 
-    containerEl.createEl('h2', { text: i18n.t('settings.title') });
+    new Setting(containerEl).setName(i18n.t('settings.title')).setHeading();
 
     new Setting(containerEl)
       .setName(i18n.t('settings.separator.name'))
@@ -68,4 +68,13 @@ export class FolgezettelSettingTab extends PluginSettingTab {
           })
       );
   }
+}
+
+// Minimal plugin-like interface used by the settings tab to avoid importing the
+// concrete plugin class and creating a circular dependency.
+interface FolgezettelPluginLike extends Plugin {
+  settings: PluginSettings;
+  i18n: I18n;
+  saveSettings: () => Promise<void>;
+  refreshViews?: () => void;
 }
