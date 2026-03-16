@@ -1,33 +1,49 @@
-.fz-list .fz-tree-item {
+.tree-item {
+  /* Depth spacing handled by depth-* classes; avoid extra base margin */
   margin-left: 0 !important;
 }
 
-.fz-list .fz-tree-item-children {
-  padding-left: 0;
-  margin-left: 0 !important;
-}
-/* Also match the case where the root element carries both classes */
-.fz-list.fz-tree-item-children {
-  padding-left: 0;
+.tree-item-children {
+  padding-left: 4px;
   margin-left: 0 !important;
 }
 
-.fz-list .fz-toggle {
+.fzz-toggle {
   width: 18px;
   text-align: center;
   font-size: 1em;
   user-select: none;
 }
+/* Padding externo para la vista Folgezettel */
+.folgezettel-view-root {
+  padding: 16px 12px 12px 16px;
+}
 
-.fz-list .fz-tree-item-self:hover > .fz-zid {
+.tree-item {
+  margin-left: 0 !important;
+}
+
+.tree-item-children {
+  /* Remove visual guide lines. Keep minimal left padding so child rows
+     don't stick to the border of the container. Indentation is handled
+     by the inline margin on `.tree-item`. */
+  padding-left: 4px;
+  margin-left: 0 !important;
+}
+
+.tree-item-self:hover .fzz-zid {
   color: inherit;
 }
 
-.fz-list .fz-zid {
+.fzz-zid {
   font-family: monospace;
   font-size: 1em;
   min-width: 30px;
   margin-right: 8px;
+}
+
+/* Truncar ZID largos y mostrar tooltip con el valor completo */
+.fzz-zid {
   display: inline-block;
   max-width: 6rem;
   overflow: hidden;
@@ -36,18 +52,15 @@
   vertical-align: middle;
 }
 
-.fz-list .fz-title {
+.fzz-title {
   font-size: 1em;
-  display: inline-block;
-  max-width: 9em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: middle;
 }
 
+/* Depth indentation is applied inline on each `tree-item` so the vertical
+  line inside `.tree-item-children` moves together with its node. */
+
 /* Tree item row sizing and spacing */
-.fz-list .fz-tree-item-self {
+.tree-item-self {
   min-height: 24px;
   height: 24px;
   display: flex;
@@ -56,31 +69,37 @@
 }
 
 /* Collapse arrow rotation handled via classes */
-.fz-list .collapse-icon svg { transition: transform 0.2s; }
-.fz-list .collapse-icon.is-collapsed svg { transform: rotate(90deg); }
-.fz-list .collapse-icon.is-expanded svg { transform: rotate(0deg); }
-
-/* Icon container within our namespaced tree */
-.fz-list .fz-tree-item-icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; }
-.fz-list .fz-tree-item-icon svg { width: 16px; height: 16px; }
+.collapse-icon svg { transition: transform 0.2s; }
+.collapse-icon.is-collapsed svg { transform: rotate(90deg); }
+.collapse-icon.is-expanded svg { transform: rotate(0deg); }
 
 /* Duplicate ZID highlight */
-.fz-list .fz-zid-duplicate { color: var(--color-error, red); }
+.fzz-zid-duplicate { color: var(--color-error, red); }
+
+/* Title truncation moved to stylesheet */
+.fzz-title {
+  display: inline-block;
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
 
 /* Actions hidden by default, shown on row hover */
-.fz-list .fz-actions {
+.fzz-actions {
   margin-left: auto;
   opacity: 0;
   transition: opacity 0.15s ease;
   pointer-events: none;
 }
-.fz-list .fz-tree-item-self:hover > .fz-actions {
+.tree-item-self:hover > .fzz-actions {
   opacity: 1;
   pointer-events: auto;
 }
 
 /* Small circular action buttons */
-.fz-list .fz-action-btn {
+.fzz-action-btn {
   width: 16px;
   height: 16px;
   padding: 2px;
@@ -91,41 +110,31 @@
   color: var(--text-muted, currentColor);
   margin-right: 2px;
 }
-.fz-list .fz-action-btn svg { width: 12px; height: 12px; }
+.fzz-action-btn svg { width: 12px; height: 12px; }
 
 /* Create area spacing */
-.fz-list .fz-tree-item.create-area { margin-top: 8px; }
-.fz-list .fz-tree-item.create-area.depth-0 { margin-left: 0px !important; }
+.tree-item.create-area { margin-top: 8px; }
+.tree-item.create-area.depth-0 { margin-left: 0px !important; }
 
 /* Depth helper classes to avoid setting inline styles in the view code */
-.fz-list .fz-tree-item.depth-0 { margin-left: 0px !important; }
-.fz-list .fz-tree-item.depth-1 { margin-left: 8px !important; }
-.fz-list .fz-tree-item.depth-2 { margin-left: 16px !important; }
-.fz-list .fz-tree-item.depth-3 { margin-left: 24px !important; }
-.fz-list .fz-tree-item.depth-4 { margin-left: 32px !important; }
-.fz-list .fz-tree-item.depth-5 { margin-left: 40px !important; }
-.fz-list .fz-tree-item.depth-6 { margin-left: 48px !important; }
-.fz-list .fz-tree-item.depth-7 { margin-left: 56px !important; }
-.fz-list .fz-tree-item.depth-8 { margin-left: 64px !important; }
-.fz-list .fz-tree-item.depth-9 { margin-left: 72px !important; }
-.fz-list .fz-tree-item.depth-10 { margin-left: 80px !important; }
-.fz-list .fz-tree-item.depth-11 { margin-left: 88px !important; }
-.fz-list .fz-tree-item.depth-12 { margin-left: 96px !important; }
+.tree-item.depth-0 { margin-left: 0px !important; }
+.tree-item.depth-1 { margin-left: 16px !important; }
+.tree-item.depth-2 { margin-left: 32px !important; }
+.tree-item.depth-3 { margin-left: 48px !important; }
+.tree-item.depth-4 { margin-left: 64px !important; }
+.tree-item.depth-5 { margin-left: 80px !important; }
+.tree-item.depth-6 { margin-left: 96px !important; }
+.tree-item.depth-7 { margin-left: 112px !important; }
+.tree-item.depth-8 { margin-left: 128px !important; }
+.tree-item.depth-9 { margin-left: 144px !important; }
+.tree-item.depth-10 { margin-left: 160px !important; }
+.tree-item.depth-11 { margin-left: 176px !important; }
+.tree-item.depth-12 { margin-left: 192px !important; }
 
 /* Confirm modal row styling (was inline in ConfirmModal) */
 .confirm-modal-row { display: flex; gap: 8px; margin-top: 12px; }
 
 /* Create-area title italics */
+.tree-item.create-area .fzz-title { font-style: italic; }
 
-.fz-list .fz-tree-item.create-area .fz-title { font-style: italic; }
-
-.fz-list .fz-tree-item.create-area .fz-tree-item-self { cursor: pointer; }
-
-/* Force-hide any pseudo-elements that may draw vertical guides inside our view. */
-.fz-list .fz-tree-item::before,
-.fz-list .fz-tree-item::after,
-.fz-list .fz-tree-item-children::before,
-.fz-list .fz-tree-item-children::after {
-  display: none !important;
-  content: none !important;
-}
+.tree-item.create-area .tree-item-self { cursor: pointer; }

@@ -146,7 +146,7 @@ class FolgezettelView extends ItemView {
   async onOpen() {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
-    this.listEl = container.createEl('div', { cls: 'fz-list fz-tree-item-children' });
+    this.listEl = container.createEl('div', { cls: 'fzz-list tree-item-children' });
     await this.renderList();
   }
 
@@ -159,8 +159,8 @@ class FolgezettelView extends ItemView {
       const appAny = this.app as any;
       const raw =
         typeof appAny.loadLocalStorage === 'function'
-          ? appAny.loadLocalStorage('fz-expanded-state')
-          : localStorage.getItem('fz-expanded-state');
+          ? appAny.loadLocalStorage('fzz-expanded-state')
+          : localStorage.getItem('fzz-expanded-state');
 
       // If the API returned a Promise (unexpected here), bail out to empty state.
       if (raw && typeof (raw as any).then === 'function') {
@@ -182,10 +182,10 @@ class FolgezettelView extends ItemView {
       const raw = JSON.stringify(this.expandedState);
       const appAny = this.app as any;
       if (typeof appAny.saveLocalStorage === 'function') {
-        const res = appAny.saveLocalStorage('fz-expanded-state', raw);
+        const res = appAny.saveLocalStorage('fzz-expanded-state', raw);
         if (res && typeof res.then === 'function') await res;
       } else {
-        localStorage.setItem('fz-expanded-state', raw);
+        localStorage.setItem('fzz-expanded-state', raw);
       }
     } catch (e) {
       console.error('Error saving expanded state:', e);
@@ -536,10 +536,8 @@ class FolgezettelView extends ItemView {
     const expanded = this.expandedState;
 
     const renderNode = (node: TreeNode, depth: number, container: HTMLElement = this.listEl) => {
-      const treeItem = container.createEl('div', { cls: `fz-tree-item` });
-      const depthClass = `depth-${Math.min(depth, 12)}`;
-      treeItem.classList.add(depthClass);
-      const self = treeItem.createEl('div', { cls: 'fz-tree-item-self' });
+      const treeItem = container.createEl('div', { cls: `tree-item depth-${depth}` });
+      const self = treeItem.createEl('div', { cls: 'tree-item-self' });
 
       self.oncontextmenu = (event) => {
         event.preventDefault();
@@ -562,7 +560,7 @@ class FolgezettelView extends ItemView {
 
       if (node.children.length > 0) {
         if (expanded[node.zid] === undefined) expanded[node.zid] = true;
-        const arrow = self.createEl('div', { cls: 'fz-tree-item-icon collapse-icon' });
+        const arrow = self.createEl('div', { cls: 'tree-item-icon collapse-icon' });
         arrow.classList.add(expanded[node.zid] ? 'is-collapsed' : 'is-expanded');
 
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -591,26 +589,36 @@ class FolgezettelView extends ItemView {
         };
       }
 
-      const zidEl = self.createEl('span', { text: node.zid, cls: 'fz-zid' });
+      const zidEl = self.createEl('span', { text: node.zid, cls: 'fzz-zid' });
       // Mostrar ZID completo en tooltip; truncar visualmente via CSS
       zidEl.title = node.zid;
       if (duplicatedZids.includes(node.zid)) {
-        zidEl.classList.add('fz-zid-duplicate');
+        zidEl.classList.add('fzz-zid-duplicate');
         zidEl.title = `${node.zid} — ZID duplicado`;
       }
 
-      const titleSpan = self.createEl('span', { text: ` ${node.file.basename}`, cls: 'fz-title' });
+      const titleSpan = self.createEl('span', { text: ` ${node.file.basename}`, cls: 'fzz-title' });
 
       // Acción a la derecha: crear nueva rama desde este nodo (icono corner-down-right)
       try {
         // No mostrar el botón en áreas de primer nivel (ZID numérico)
         if (!/^\d+$/.test(node.zid)) {
-          const actions = self.createEl('div', { cls: 'fz-actions' });
+          const actions = self.createEl('div', { cls: 'fzz-actions' });
           // Visibility and pointer-events handled by CSS on hover
 
           // Leftmost small circular button: move-down (create footnote)
-          const btnFootnote = actions.createEl('button', { cls: 'fz-action-btn' });
+          const btnFootnote = actions.createEl('button', { cls: 'fzz-action-btn' });
           btnFootnote.setAttr('aria-label', this.plugin.i18n.t('action.createFootnote'));
+          btnFootnote.style.width = '16px';
+          btnFootnote.style.height = '16px';
+          btnFootnote.style.padding = '2px';
+          btnFootnote.style.border = '0';
+          btnFootnote.style.borderRadius = '50%';
+          btnFootnote.style.display = 'inline-flex';
+          btnFootnote.style.alignItems = 'center';
+          btnFootnote.style.justifyContent = 'center';
+          btnFootnote.style.background = 'transparent';
+          btnFootnote.style.color = 'var(--text-muted, currentColor)';
           setIcon(btnFootnote, 'move-down');
           btnFootnote.onclick = async (e) => {
             e.stopPropagation();
@@ -622,8 +630,18 @@ class FolgezettelView extends ItemView {
           };
 
           // Middle button: move-right (creates next or inserted depending on position)
-          const btnInsertOrNext = actions.createEl('button', { cls: 'fz-action-btn' });
+          const btnInsertOrNext = actions.createEl('button', { cls: 'fzz-action-btn' });
           btnInsertOrNext.setAttr('aria-label', this.plugin.i18n.t('action.insertOrNext'));
+          btnInsertOrNext.style.width = '16px';
+          btnInsertOrNext.style.height = '16px';
+          btnInsertOrNext.style.padding = '2px';
+          btnInsertOrNext.style.border = '0';
+          btnInsertOrNext.style.borderRadius = '50%';
+          btnInsertOrNext.style.display = 'inline-flex';
+          btnInsertOrNext.style.alignItems = 'center';
+          btnInsertOrNext.style.justifyContent = 'center';
+          btnInsertOrNext.style.background = 'transparent';
+          btnInsertOrNext.style.color = 'var(--text-muted, currentColor)';
           setIcon(btnInsertOrNext, 'move-right');
           btnInsertOrNext.onclick = async (e) => {
             e.stopPropagation();
@@ -641,8 +659,19 @@ class FolgezettelView extends ItemView {
           };
 
           // Right small circular button: corner-down-right (creates branch)
-          const btn = actions.createEl('button', { cls: 'fz-action-btn' });
+          const btn = actions.createEl('button', { cls: 'fzz-action-btn' });
           btn.setAttr('aria-label', this.plugin.i18n.t('action.createBranch'));
+          // Small circular icon button styled via inline styles to match theme colors
+          btn.style.width = '16px';
+          btn.style.height = '16px';
+          btn.style.padding = '2px';
+          btn.style.border = '0';
+          btn.style.borderRadius = '50%';
+          btn.style.display = 'inline-flex';
+          btn.style.alignItems = 'center';
+          btn.style.justifyContent = 'center';
+          btn.style.background = 'transparent';
+          btn.style.color = 'var(--text-muted, currentColor)';
           setIcon(btn, 'corner-down-right');
           btn.onclick = async (e) => {
             e.stopPropagation();
@@ -668,7 +697,7 @@ class FolgezettelView extends ItemView {
 
       if (expanded[node.zid]) {
         // Crear contenedor para hijos que muestra la línea vertical
-        const childrenContainer = treeItem.createEl('div', { cls: 'fz-tree-item-children' });
+        const childrenContainer = treeItem.createEl('div', { cls: 'tree-item-children' });
         for (const child of node.children) renderNode(child, depth + 1, childrenContainer);
 
         // (Removed per-level placeholder row — branch creation now via right-aligned button)
@@ -686,11 +715,19 @@ class FolgezettelView extends ItemView {
       const nextArea = maxTop + 1;
 
       // Crear un nodo visual con la misma estructura que renderNode
-      const treeItem = this.listEl.createEl('div', { cls: 'fz-tree-item create-area depth-0' });
-      const self = treeItem.createEl('div', { cls: 'fz-tree-item-self' });
+      const treeItem = this.listEl.createEl('div', { cls: 'tree-item create-area' });
+      treeItem.style.marginLeft = `${0 * 16}px`;
+      treeItem.style.marginTop = '8px';
+      const self = treeItem.createEl('div', { cls: 'tree-item-self' });
+      self.style.cursor = 'pointer';
+      self.style.minHeight = '24px';
+      self.style.height = '24px';
+      self.style.display = 'flex';
+      self.style.alignItems = 'center';
+      self.style.gap = '8px';
 
       // Zid area (icono plus en el lugar del zid)
-      const zidEl = self.createEl('span', { cls: 'fz-zid' });
+      const zidEl = self.createEl('span', { cls: 'fzz-zid' });
       // Mostrar el número correlativo donde normalmente va el ZID
       zidEl.title = String(nextArea);
       zidEl.textContent = String(nextArea);
@@ -698,8 +735,9 @@ class FolgezettelView extends ItemView {
       // Texto alineado donde va el título (en cursiva)
       const titleEl = self.createEl('span', {
         text: ` ${this.plugin.i18n.t('action.createArea')}`,
-        cls: 'fz-title',
+        cls: 'fzz-title',
       });
+      titleEl.style.fontStyle = 'italic';
 
       self.onclick = async () => {
         const zid = String(nextArea);
@@ -773,6 +811,9 @@ class ConfirmModal extends Modal {
     const { contentEl } = this;
     contentEl.createEl('h3', { text: this.message });
     const btnRow = contentEl.createEl('div', { cls: 'confirm-modal-row' });
+    btnRow.style.display = 'flex';
+    btnRow.style.gap = '8px';
+    btnRow.style.marginTop = '12px';
 
     const btnOk = btnRow.createEl('button', { text: 'OK', cls: 'mod-cta' });
     const btnCancel = btnRow.createEl('button', { text: 'Cancel' });
