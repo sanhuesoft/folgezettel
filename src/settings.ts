@@ -43,7 +43,7 @@ export class FolgezettelSettingTab extends PluginSettingTab {
             try {
               this.plugin.refreshViews();
             } catch (_e) {
-              // ignore if plugin doesn't expose refreshViews
+              console.error('Error refreshing views after changing separator:', _e);
             }
             this.display();
           })
@@ -63,7 +63,9 @@ export class FolgezettelSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
             try {
               this.plugin.refreshViews();
-            } catch (_e) {}
+            } catch (_e) {
+              console.error('Error refreshing views after changing language:', _e);
+            }
             this.display();
           })
       );

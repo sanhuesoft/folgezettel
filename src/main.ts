@@ -51,6 +51,7 @@ function compareZid(a: string, b: string) {
   }
   return 0;
 }
+ 
 
 export default class FolgezettelPlugin extends Plugin {
   settings: PluginSettings = DEFAULT_SETTINGS;
@@ -128,7 +129,6 @@ class FolgezettelView extends ItemView {
   constructor(leaf: WorkspaceLeaf, plugin: FolgezettelPlugin) {
     super(leaf);
     this.plugin = plugin;
-    this.expandedState = this.loadExpandedState();
   }
 
   getViewType() {
@@ -151,46 +151,11 @@ class FolgezettelView extends ItemView {
   }
 
   async onClose() {
-    await this.saveExpandedState();
+    // Persistence of expanded state removed: start always fully expanded.
   }
 
-  private loadExpandedState(): Record<string, boolean> {
-    try {
-      const appAny = this.app as any;
-      const raw =
-        typeof appAny.loadLocalStorage === 'function'
-          ? appAny.loadLocalStorage('fzz-expanded-state')
-          : localStorage.getItem('fzz-expanded-state');
-
-      // If the API returned a Promise (unexpected here), bail out to empty state.
-      if (raw && typeof (raw as any).then === 'function') {
-        console.warn('loadLocalStorage returned a Promise; using empty expanded state');
-        return {};
-      }
-
-      if (!raw) return {};
-      const parsed = JSON.parse(raw as string);
-      if (parsed && typeof parsed === 'object') return parsed;
-    } catch (_e) {
-      console.error('Error loading expanded state:', _e);
-    }
-    return {};
-  }
-
-  private async saveExpandedState(): Promise<void> {
-    try {
-      const raw = JSON.stringify(this.expandedState);
-      const appAny = this.app as any;
-      if (typeof appAny.saveLocalStorage === 'function') {
-        const res = appAny.saveLocalStorage('fzz-expanded-state', raw);
-        if (res && typeof res.then === 'function') await res;
-      } else {
-        localStorage.setItem('fzz-expanded-state', raw);
-      }
-    } catch (e) {
-      console.error('Error saving expanded state:', e);
-    }
-  }
+  // Note: expanded state persistence removed. The `expandedState` map is
+  // kept in-memory for the session only so the tree starts fully expanded.
 
   private refreshViews() {
     this.plugin.refreshViews();
@@ -581,7 +546,6 @@ class FolgezettelView extends ItemView {
           try {
             e.stopPropagation();
             expanded[node.zid] = !expanded[node.zid];
-            await this.saveExpandedState();
             await this.renderList();
           } catch (err) {
             console.error('Error toggling node expansion:', err);
