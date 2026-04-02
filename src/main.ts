@@ -183,7 +183,7 @@ class FolgezettelView extends ItemView {
   }
 
   getIcon() {
-    return 'archive';
+    return 'brain';
   }
 
   async onOpen() {
