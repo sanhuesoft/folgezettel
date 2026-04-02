@@ -9,6 +9,7 @@
   "settings.lang.es": "Spanish"
   ,
   "command.open": "Open Folgezettel sidebar",
+  "command.openGraph": "Open Folgezettel graph view",
   "view.title": "Folgezettel",
   "menu.createNext": "Create next note",
   "menu.assignNext": "Assign next note",

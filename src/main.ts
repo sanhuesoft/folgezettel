@@ -3,12 +3,14 @@ import { DEFAULT_SETTINGS, FolgezettelSettingTab, PluginSettings } from './setti
 import { I18n } from './i18n';
 
 const VIEW_TYPE = 'folgezettel-view';
+const GRAPH_VIEW_TYPE = 'folgezettel-graph';
 
 type Token = { type: 'num' | 'upper' | 'lower' | 'sep'; value: number | string };
+type ZettelType = 'next' | 'branch' | 'inserted';
 
 function tokenize(zid: string): Token[] {
   const s = String(zid);
-  const parts = s.match(new RegExp('(\\d+|[A-Z]+|[a-z]+|[.,/])', 'g')) || [];
+  const parts = s.match(/(\d+|[A-Z]+|[a-z]+|[.,/])/g) || [];
   return parts.map((p) => {
     if (/^\d+$/.test(p)) return { type: 'num', value: parseInt(p, 10) };
     if (/^[A-Z]+$/.test(p)) return { type: 'upper', value: p };
@@ -18,12 +20,10 @@ function tokenize(zid: string): Token[] {
 }
 
 function typeRank(t: Token['type']) {
-  // Define ordering so that numeric/depth separators come before uppercase branches:
-  // num < sep < upper < lower
-  if (t === 'num') return 1;
-  if (t === 'sep') return 2;
-  if (t === 'upper') return 3;
-  return 4;
+  if (t === 'upper') return 1;
+  if (t === 'lower') return 2;
+  if (t === 'num') return 3;
+  return 4; 
 }
 
 function compareZid(a: string, b: string) {
@@ -51,7 +51,34 @@ function compareZid(a: string, b: string) {
   }
   return 0;
 }
- 
+
+function calculateDepth(zid: string): number {
+  const tokens = tokenize(zid);
+  let depth = 0;
+  let lastType: Token['type'] | null = null;
+  
+  for (const t of tokens) {
+    if (lastType === null) {
+      depth = 0;
+    } else if (t.type === 'sep') {
+      depth += 1;
+    } else if (t.type === 'upper' && (lastType === 'num' || lastType === 'lower')) {
+      depth += 1;
+    } else if (t.type === 'lower' && lastType === 'upper') {
+      depth += 1;
+    }
+    lastType = t.type;
+  }
+  return depth;
+}
+
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 export default class FolgezettelPlugin extends Plugin {
   settings: PluginSettings = DEFAULT_SETTINGS;
@@ -71,14 +98,22 @@ export default class FolgezettelPlugin extends Plugin {
       console.error('Error refreshing views after saving settings:', _e);
     }
   }
+
   async onload() {
     await this.loadSettings();
     this.registerView(VIEW_TYPE, (leaf) => new FolgezettelView(leaf, this));
+    this.registerView(GRAPH_VIEW_TYPE, (leaf) => new FolgezettelGraphView(leaf, this));
 
     this.addCommand({
       id: 'open-fz',
       name: this.i18n.t('command.open'),
       callback: () => this.activateView(),
+    });
+
+    this.addCommand({
+      id: 'open-fz-graph',
+      name: this.i18n.t('command.openGraph') || 'Open Graph',
+      callback: () => this.activateGraphView(),
     });
 
     this.addCommand({
@@ -107,6 +142,14 @@ export default class FolgezettelPlugin extends Plugin {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE);
     await this.app.workspace.getRightLeaf(false).setViewState({ type: VIEW_TYPE, active: true });
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+    if (leaves.length) this.app.workspace.revealLeaf(leaves[0]);
+  }
+
+  async activateGraphView() {
+    // Open the graph view in a new leaf (tab)
+    const leaf = this.app.workspace.getLeaf(true);
+    await leaf.setViewState({ type: GRAPH_VIEW_TYPE, active: true });
+    const leaves = this.app.workspace.getLeavesOfType(GRAPH_VIEW_TYPE);
     if (leaves.length) this.app.workspace.revealLeaf(leaves[0]);
   }
 
@@ -150,12 +193,7 @@ class FolgezettelView extends ItemView {
     await this.renderList();
   }
 
-  async onClose() {
-    // Persistence of expanded state removed: start always fully expanded.
-  }
-
-  // Note: expanded state persistence removed. The `expandedState` map is
-  // kept in-memory for the session only so the tree starts fully expanded.
+  async onClose() {}
 
   private refreshViews() {
     this.plugin.refreshViews();
@@ -181,170 +219,80 @@ class FolgezettelView extends ItemView {
 
   private async computeNewZid(
     node: { zid: string },
-    type: 'next' | 'lateral' | 'deep' | 'branch' | 'footnote' | 'inserted'
+    type: ZettelType
   ): Promise<string> {
     const items = await this.collectZidFiles();
-    const zids = items.map((it) => it.zid);
-    let newZid = '';
-    const exists = (z: string) => zids.includes(z);
-
+    const zids = new Set(items.map((it) => it.zid));
+    const exists = (z: string) => zids.has(z);
+    
+    let candidate = '';
+    const zid = node.zid;
+    
     const incChar = (ch: string) => String.fromCharCode(ch.charCodeAt(0) + 1);
 
     if (type === 'next') {
-      // If ends with number -> increment number
-      const mNum = node.zid.match(/^(.*?)(\d+)$/);
-      if (mNum) {
-        const prefix = mNum[1];
-        let num = parseInt(mNum[2], 10) + 1;
-        newZid = `${prefix}${num}`;
-        while (exists(newZid)) {
-          num += 1;
-          newZid = `${prefix}${num}`;
-        }
-      } else {
-        // If ends with uppercase
-        const mUp = node.zid.match(/^(.*?)([A-Z])$/);
-        if (mUp) {
-          const prefix = mUp[1];
-          let ch = mUp[2];
-          let next = incChar(ch);
-          newZid = `${prefix}${next}`;
-          while (exists(newZid)) {
-            next = incChar(next);
-            newZid = `${prefix}${next}`;
-          }
-        } else {
-          // ends with lowercase
-          const mLow = node.zid.match(/^(.*?)([a-z])$/);
-          if (mLow) {
-            const prefix = mLow[1];
-            let ch = mLow[2];
-            let next = incChar(ch);
-            newZid = `${prefix}${next}`;
-            while (exists(newZid)) {
-              next = incChar(next);
-              newZid = `${prefix}${next}`;
-            }
-          } else {
-            // fallback: append 1
-            let n = 1;
-            newZid = `${node.zid}${n}`;
-            while (exists(newZid)) {
-              n += 1;
-              newZid = `${node.zid}${n}`;
-            }
-          }
-        }
-      }
-    }
-
-    if (type === 'branch' || type === 'lateral') {
-      // Branch notes: indented a level relative to parent.
-      // If ends in number -> add uppercase letter. 1.1 -> 1.1A
-      // If ends uppercase -> add lowercase letter. 1.1A -> 1.1Aa
-      // If ends lowercase -> add uppercase letter. 7.5a -> 7.5aA
-      const mNum = node.zid.match(/^(.*?)(\d+)$/);
-      if (mNum) {
-        let suffix = 'A';
-        newZid = `${node.zid}${suffix}`;
-        while (exists(newZid)) {
-          suffix = incChar(suffix);
-          newZid = `${node.zid}${suffix}`;
-        }
-      } else if (/.*[A-Z]$/.test(node.zid)) {
-        let suffix = 'a';
-        newZid = `${node.zid}${suffix}`;
-        while (exists(newZid)) {
-          suffix = incChar(suffix);
-          newZid = `${node.zid}${suffix}`;
-        }
-      } else {
-        // ends lowercase (or other): append uppercase
-        let suffix = 'A';
-        newZid = `${node.zid}${suffix}`;
-        while (exists(newZid)) {
-          suffix = incChar(suffix);
-          newZid = `${node.zid}${suffix}`;
-        }
-      }
-    }
-
-    if (type === 'footnote') {
-      // Footnote: indented one level, placed before branch notes. Always add
-      // configured separator and the first available numeric index.
-      const sep = this.plugin.settings?.separator || '.';
-      let idx = 1;
-      newZid = `${node.zid}${sep}${idx}`;
-      while (exists(newZid)) {
-        idx += 1;
-        newZid = `${node.zid}${sep}${idx}`;
-      }
-    }
-
-    if (type === 'inserted') {
-      // Inserted notes: same level as parent (sibling insertion)
-      // If ends with number -> add lowercase letter 1.1 -> 1.1a
-      // If ends with uppercase -> add numeric suffix 6.5A -> 6.5A1
-      // If ends with lowercase -> try to create next-lowercase+'1' if that sibling exists,
-      // otherwise append number to current (6.5a1).
-      const mNum = node.zid.match(/^(.*?)(\d+)$/);
-      if (mNum) {
-        let suffix = 'a';
-        newZid = `${node.zid}${suffix}`;
-        while (exists(newZid)) {
-          suffix = incChar(suffix);
-          newZid = `${node.zid}${suffix}`;
-        }
-      } else if (/.*[A-Z]$/.test(node.zid)) {
-        let idx = 1;
-        newZid = `${node.zid}${idx}`;
-        while (exists(newZid)) {
-          idx += 1;
-          newZid = `${node.zid}${idx}`;
-        }
-      } else if (/.*[a-z]$/.test(node.zid)) {
-        const last = node.zid.slice(-1);
-        const nextLetter = incChar(last);
-        const baseNext = `${node.zid.slice(0, -1)}${nextLetter}`;
-        // Prefer creating the sibling without numeric suffix (e.g. 2.2b) if free,
-        // otherwise try baseNext + '1', otherwise append numeric suffix to current.
-        if (!exists(baseNext)) {
-          newZid = baseNext;
-        } else {
-          let candidate = `${baseNext}1`;
-          if (!exists(candidate)) {
-            newZid = candidate;
-          } else {
-            let idx = 1;
-            newZid = `${node.zid}${idx}`;
-            while (exists(newZid)) {
-              idx += 1;
-              newZid = `${node.zid}${idx}`;
-            }
-          }
-        }
-      } else {
-        // fallback
+      if (/[a-zA-Z]$/.test(zid)) {
         let n = 1;
-        newZid = `${node.zid}${n}`;
-        while (exists(newZid)) {
-          n += 1;
-          newZid = `${node.zid}${n}`;
+        candidate = `${zid}${n}`;
+        while (exists(candidate)) { n++; candidate = `${zid}${n}`; }
+      } else {
+        const match = zid.match(/^(.*?)(\d+)$/);
+        if (match) {
+          let num = parseInt(match[2], 10) + 1;
+          candidate = `${match[1]}${num}`;
+          while (exists(candidate)) { num++; candidate = `${match[1]}${num}`; }
+        }
+      }
+    } 
+    else if (type === 'branch') {
+      if (/^\d+$/.test(zid)) {
+        let num = 1;
+        candidate = `${zid}/${num}`;
+        while (exists(candidate)) { num++; candidate = `${zid}/${num}`; }
+      } else if (/\d$/.test(zid)) {
+        let char = 'A';
+        candidate = `${zid}${char}`;
+        while (exists(candidate)) { char = incChar(char); candidate = `${zid}${char}`; }
+      } else if (/[A-Z]$/.test(zid)) {
+        let char = 'a';
+        candidate = `${zid}${char}`;
+        while (exists(candidate)) { char = incChar(char); candidate = `${zid}${char}`; }
+      } else if (/[a-z]$/.test(zid)) {
+        let char = 'A';
+        candidate = `${zid}${char}`;
+        while (exists(candidate)) { char = incChar(char); candidate = `${zid}${char}`; }
+      }
+    } 
+    else if (type === 'inserted') {
+      if (/\d$/.test(zid)) {
+        let char = 'a';
+        candidate = `${zid}${char}`;
+        while (exists(candidate)) { char = incChar(char); candidate = `${zid}${char}`; }
+      } else if (/[A-Z]$/.test(zid)) {
+        let num = 1;
+        candidate = `${zid}${num}`;
+        while (exists(candidate)) { num++; candidate = `${zid}${num}`; }
+      } else if (/[a-z]$/.test(zid)) {
+        const match = zid.match(/^(.*?)([a-z])$/);
+        if (match) {
+          let char = incChar(match[2]);
+          candidate = `${match[1]}${char}`;
+          while (exists(candidate)) { char = incChar(char); candidate = `${match[1]}${char}`; }
         }
       }
     }
 
-    return newZid;
+    return candidate || `${zid}-1`;
   }
 
   async createZettel(
     node: { zid: string },
-    type: 'next' | 'lateral' | 'deep' | 'branch' | 'footnote' | 'inserted'
+    type: ZettelType
   ) {
     const newZid = await this.computeNewZid(node, type);
+    const uuid = generateUUID();
 
-    // Use Obsidian-like untitled naming to avoid OS filename collisions
-    const baseName = this.plugin.i18n.t('note.untitled');
+    const baseName = this.plugin.i18n.t('note.untitled') || 'Sin título';
     let fileName = baseName;
     let idx = 1;
     while (this.app.vault.getFiles().some((f) => f.basename === fileName)) {
@@ -352,7 +300,7 @@ class FolgezettelView extends ItemView {
       idx += 1;
     }
 
-    const content = `---\nzid: ${newZid}\n---\n`;
+    const content = `---\nzid: ${newZid}\nuuid: ${uuid}\n---\n`;
     const newFile = await this.app.vault.create(`${fileName}.md`, content);
     await this.app.workspace.getLeaf(false).openFile(newFile);
     this.refreshViews();
@@ -360,7 +308,7 @@ class FolgezettelView extends ItemView {
 
   async assignZettel(
     node: { zid: string },
-    type: 'next' | 'lateral' | 'deep' | 'branch' | 'footnote' | 'inserted'
+    type: ZettelType
   ) {
     const newZid = await this.computeNewZid(node, type);
 
@@ -370,42 +318,43 @@ class FolgezettelView extends ItemView {
     const candidates = allFiles.filter((f) => !pathsWithZid.has(f.path));
 
     if (candidates.length === 0) {
-      new Notice(this.plugin.i18n.t('notice.noCandidates'));
+      new Notice(this.plugin.i18n.t('notice.noCandidates') || 'No hay notas huérfanas.');
       return;
     }
+    
+    const placeholder = (this.plugin.i18n.t('modal.assignPlaceholder') || 'Asignar ZID {zid} a...').replace('{zid}', newZid);
+
     new ZidAssignModal(
       this.app,
       candidates,
       newZid,
       async (file) => {
         await this.addZidToFile(file, newZid);
-        // El evento vault.modify ya dispara refreshViews automáticamente
       },
-      this.plugin.i18n.t('modal.assignPlaceholder', { zid: newZid })
+      placeholder
     ).open();
   }
 
   private async addZidToFile(file: TFile, zid: string) {
     const content = await this.app.vault.read(file);
+    const uuid = generateUUID();
     let newContent: string;
 
     if (/^---\n/.test(content)) {
-      // Insertar el campo zid justo antes del cierre --- sin tocar nada más
-      newContent = content.replace(/^(---\n[\s\S]*?)(\n---)/, `$1\nzid: ${zid}$2`);
+      newContent = content.replace(/^(---\n[\s\S]*?)(\n---)/, `$1\nzid: ${zid}\nuuid: ${uuid}$2`);
     } else {
-      // Crear frontmatter mínimo al inicio
-      newContent = `---\nzid: ${zid}\n---\n${content}`;
+      newContent = `---\nzid: ${zid}\nuuid: ${uuid}\n---\n${content}`;
     }
 
     await this.app.vault.modify(file, newContent);
-    new Notice(this.plugin.i18n.t('notice.zidAssigned', { zid, name: file.basename }));
+    new Notice((this.plugin.i18n.t('notice.zidAssigned') || 'ZID asignado.').replace('{zid}', zid).replace('{name}', file.basename));
   }
 
   async removeZidFromFile(file: TFile) {
     const content = await this.app.vault.read(file);
     const m = content.match(/^---\n([\s\S]*?)\n---\n?/);
     if (!m) {
-      new Notice(this.plugin.i18n.t('notice.noFrontmatter'));
+      new Notice(this.plugin.i18n.t('notice.noFrontmatter') || 'No hay frontmatter.');
       return;
     }
 
@@ -416,14 +365,13 @@ class FolgezettelView extends ItemView {
 
     let newContent: string;
     if (newFm === '') {
-      // Eliminar frontmatter por completo
       newContent = content.replace(/^---\n[\s\S]*?\n---\n?/, '');
     } else {
       newContent = content.replace(/^---\n([\s\S]*?)\n---/, `---\n${newFm}\n---`);
     }
 
     await this.app.vault.modify(file, newContent);
-    new Notice(this.plugin.i18n.t('notice.zidRemoved', { name: file.basename }));
+    new Notice((this.plugin.i18n.t('notice.zidRemoved') || 'ZID eliminado de {name}').replace('{name}', file.basename));
   }
 
   async renderList() {
@@ -431,93 +379,78 @@ class FolgezettelView extends ItemView {
     const version = ++this.renderVersion;
 
     const items = await this.collectZidFiles();
-
-    // Si una llamada más reciente llegó mientras esperábamos, la cedemos el paso
     if (version !== this.renderVersion) return;
 
     this.listEl.empty();
+    
     items.sort((a, b) => compareZid(a.zid, b.zid));
 
     const zidCount: Record<string, number> = {};
     for (const it of items) zidCount[it.zid] = (zidCount[it.zid] || 0) + 1;
     const duplicatedZids = Object.keys(zidCount).filter((zid) => zidCount[zid] > 1);
     if (duplicatedZids.length > 0) {
-      new Notice(
-        this.plugin.i18n.t('notice.duplicatedZids', { list: duplicatedZids.join(', ') })
-      );
+      const msg = this.plugin.i18n.t('notice.duplicatedZids') || 'ZIDs duplicados: {list}';
+      new Notice(msg.replace('{list}', duplicatedZids.join(', ')));
     }
 
-    type TreeNode = { file: TFile; zid: string; parent: TreeNode | null; children: TreeNode[] };
-    const roots: Record<string, TreeNode> = {};
-    const nodeMap: Record<string, TreeNode> = {};
+    type TreeNode = { file: TFile; zid: string; depth: number; parent: TreeNode | null; children: TreeNode[] };
+    const rootNodes: TreeNode[] = [];
+    const stack: TreeNode[] = [];
 
     for (const it of items) {
-      nodeMap[it.zid] = { file: it.file, zid: it.zid, parent: null, children: [] };
-    }
+      const depth = calculateDepth(it.zid);
+      const node: TreeNode = { file: it.file, zid: it.zid, depth, parent: null, children: [] };
 
-    for (const it of items) {
-      let parentZid = '';
-      const sepChar = this.plugin.settings?.separator || '.';
-      for (let i = it.zid.length - 1; i > 0; i -= 1) {
-        const candidate = it.zid.slice(0, i);
-        if (!nodeMap[candidate]) continue;
-        // Character immediately after candidate
-        const nextChar = it.zid.charAt(i);
-        const suffix = it.zid.slice(i);
-
-        // 1) If the next character is the configured separator -> parent
-        if (nextChar === sepChar) {
-          parentZid = candidate;
-          break;
-        }
-
-        // 2) If suffix begins with one or more uppercase letters -> child (deeper level)
-        if (/^[A-Z]/.test(suffix)) {
-          parentZid = candidate;
-          break;
-        }
-
-        // 3) If suffix is purely digits and the candidate ends with uppercase -> numeric child of uppercase (e.g., 1.1A1)
-        if (/^\d+$/.test(suffix) && /[A-Z]$/.test(candidate)) {
-          parentZid = candidate;
-          break;
-        }
-
-        // 4) If suffix is lowercase but the candidate itself ends with uppercase,
-        //    then it's a child of the uppercase node (e.g., 1.1A -> 1.1Aa)
-        if (/^[a-z]+$/.test(suffix) && /[A-Z]$/.test(candidate)) {
-          parentZid = candidate;
-          break;
-        }
+      while (stack.length > 0 && stack[stack.length - 1].depth >= depth) {
+        stack.pop();
       }
-      if (parentZid) {
-        nodeMap[it.zid].parent = nodeMap[parentZid];
-        nodeMap[parentZid].children.push(nodeMap[it.zid]);
+
+      if (stack.length > 0) {
+        const parent = stack[stack.length - 1];
+        node.parent = parent;
+        parent.children.push(node);
       } else {
-        roots[it.zid] = nodeMap[it.zid];
+        rootNodes.push(node);
       }
+      stack.push(node);
     }
 
     const expanded = this.expandedState;
 
-    const renderNode = (node: TreeNode, depth: number, container: HTMLElement = this.listEl) => {
-      const treeItem = container.createEl('div', { cls: `tree-item depth-${depth}` });
-      const self = treeItem.createEl('div', { cls: 'tree-item-self' });
+    const renderNode = (node: TreeNode, currentDepth: number, container: HTMLElement = this.listEl) => {
+      const treeItem = container.createEl('div', { cls: `tree-item` });
+      
+      const self = treeItem.createEl('div', { cls: 'tree-item-self is-clickable' });
 
       self.oncontextmenu = (event) => {
         event.preventDefault();
-        const menu = new Menu(this.app);
-        // menu.addSeparator();
+        const menu = new Menu();
+        
         menu.addItem((item) => {
-          item.setTitle(this.plugin.i18n.t('menu.removeZid'));
+          item.setTitle('Crear nota siguiente');
+          item.setIcon('arrow-right');
+          item.onClick(() => this.createZettel(node, 'next'));
+        });
+        menu.addItem((item) => {
+          item.setTitle('Crear nota insertada');
+          item.setIcon('corner-down-right');
+          item.onClick(() => this.createZettel(node, 'inserted'));
+        });
+        menu.addItem((item) => {
+          item.setTitle('Crear rama');
+          item.setIcon('folder-input');
+          item.onClick(() => this.createZettel(node, 'branch'));
+        });
+        
+        menu.addSeparator();
+
+        menu.addItem((item) => {
+          item.setTitle(this.plugin.i18n.t('menu.removeZid') || 'Eliminar ZID');
           item.setIcon('trash');
           item.onClick(async () => {
-            const ok = await new ConfirmModal(
-              this.app,
-              this.plugin.i18n.t('confirm.removeZid', { zid: node.zid, name: node.file.basename })
-            ).openAndWait();
-            if (!ok) return;
-            await this.removeZidFromFile(node.file);
+            const msg = (this.plugin.i18n.t('confirm.removeZid') || 'Eliminar ZID {zid}?').replace('{zid}', node.zid);
+            const ok = await new ConfirmModal(this.app, msg).openAndWait();
+            if (ok) await this.removeZidFromFile(node.file);
           });
         });
         menu.showAtPosition({ x: event.pageX, y: event.pageY });
@@ -526,13 +459,13 @@ class FolgezettelView extends ItemView {
       if (node.children.length > 0) {
         if (expanded[node.zid] === undefined) expanded[node.zid] = true;
         const arrow = self.createEl('div', { cls: 'tree-item-icon collapse-icon' });
+        arrow.style.flexShrink = '0';
         arrow.classList.add(expanded[node.zid] ? 'is-collapsed' : 'is-expanded');
 
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('viewBox', '0 0 16 16');
         svg.setAttribute('width', '16');
         svg.setAttribute('height', '16');
-        // Rotation/transition handled via CSS classes (.is-collapsed/.is-expanded)
 
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', 'M6 4l4 4-4 4');
@@ -543,77 +476,66 @@ class FolgezettelView extends ItemView {
         arrow.appendChild(svg);
 
         arrow.onclick = async (e) => {
-          try {
-            e.stopPropagation();
-            expanded[node.zid] = !expanded[node.zid];
-            await this.renderList();
-          } catch (err) {
-            console.error('Error toggling node expansion:', err);
-          }
+          e.stopPropagation();
+          expanded[node.zid] = !expanded[node.zid];
+          await this.renderList();
         };
       }
 
-      const zidEl = self.createEl('span', { text: node.zid, cls: 'fzz-zid' });
-      // Mostrar ZID completo en tooltip; truncar visualmente via CSS
-      zidEl.title = node.zid;
+      // Agrupamos el ZID y el Título de la nota dentro del contenedor principal
+      // Esto permite que el componente de Obsidian ("tree-item-inner") maneje 
+      // el ancho sobrante y trunque el texto sin interrumpir la jerarquía.
+      const innerEl = self.createEl('div', { cls: 'tree-item-inner fzz-title' });
+
+      const zidSpan = innerEl.createEl('span', { text: node.zid, cls: 'fzz-zid' });
+      zidSpan.style.fontFamily = 'var(--font-monospace, monospace)';
+      zidSpan.style.marginRight = '8px';
+      zidSpan.style.color = 'var(--text-muted)'; // Le damos un color atenuado para separarlo visualmente del título
+      
       if (duplicatedZids.includes(node.zid)) {
-        zidEl.classList.add('fzz-zid-duplicate');
-        zidEl.title = `${node.zid} — ZID duplicado`;
+        zidSpan.classList.add('fzz-zid-duplicate');
+        zidSpan.style.color = 'var(--text-error)';
+        zidSpan.title = `${node.zid} — ZID duplicado`;
+      } else {
+        zidSpan.title = node.zid;
       }
 
-      const titleSpan = self.createEl('span', { text: ` ${node.file.basename}`, cls: 'fzz-title' });
+      innerEl.createEl('span', { text: node.file.basename });
 
-      // Acción a la derecha: crear nueva rama desde este nodo (icono corner-down-right)
       try {
-        // No mostrar el botón en áreas de primer nivel (ZID numérico)
         if (!/^\d+$/.test(node.zid)) {
           const actions = self.createEl('div', { cls: 'fzz-actions' });
-          // Visibility and pointer-events handled by CSS on hover
+          actions.style.display = 'flex';
+          actions.style.alignItems = 'center';
+          actions.style.flexShrink = '0';
+          actions.style.gap = '4px';
+          actions.style.marginLeft = '8px';
 
-          // Leftmost small circular button: move-down (create footnote)
-          const btnFootnote = actions.createEl('button', { cls: 'fzz-action-btn' });
-          btnFootnote.setAttr('aria-label', this.plugin.i18n.t('action.createFootnote'));
-          setIcon(btnFootnote, 'move-down');
-          btnFootnote.onclick = async (e) => {
+          const btnNext = actions.createEl('button', { cls: 'fzz-action-btn' });
+          btnNext.setAttr('aria-label', 'Siguiente');
+          setIcon(btnNext, 'arrow-right');
+          btnNext.onclick = async (e) => {
             e.stopPropagation();
-            if (e.shiftKey) {
-              await this.assignZettel(node, 'footnote');
-              return;
-            }
-            await this.createZettel(node, 'footnote');
+            if (e.shiftKey) await this.assignZettel(node, 'next');
+            else await this.createZettel(node, 'next');
           };
 
-          // Middle button: move-right (creates next or inserted depending on position)
-          const btnInsertOrNext = actions.createEl('button', { cls: 'fzz-action-btn' });
-          btnInsertOrNext.setAttr('aria-label', this.plugin.i18n.t('action.insertOrNext'));
-          setIcon(btnInsertOrNext, 'move-right');
-          btnInsertOrNext.onclick = async (e) => {
+          const btnInserted = actions.createEl('button', { cls: 'fzz-action-btn' });
+          btnInserted.setAttr('aria-label', 'Insertada');
+          setIcon(btnInserted, 'corner-down-right');
+          btnInserted.onclick = async (e) => {
             e.stopPropagation();
-            // Determine siblings for node to see if it's last in its level
-            const siblings = node.parent ? node.parent.children : Object.values(roots);
-            const idx = siblings.findIndex((s) => s.zid === node.zid);
-            const isLast = idx === siblings.length - 1;
-            if (isLast) {
-              if (e.shiftKey) await this.assignZettel(node, 'next');
-              else await this.createZettel(node, 'next');
-            } else {
-              if (e.shiftKey) await this.assignZettel(node, 'inserted');
-              else await this.createZettel(node, 'inserted');
-            }
+            if (e.shiftKey) await this.assignZettel(node, 'inserted');
+            else await this.createZettel(node, 'inserted');
           };
 
-          // Right small circular button: corner-down-right (creates branch)
-          const btn = actions.createEl('button', { cls: 'fzz-action-btn' });
-          btn.setAttr('aria-label', this.plugin.i18n.t('action.createBranch'));
-          // Small circular icon button: styling moved to CSS via `.fzz-action-btn`
-          setIcon(btn, 'corner-down-right');
-          btn.onclick = async (e) => {
+          const btnBranch = actions.createEl('button', { cls: 'fzz-action-btn' });
+          btnBranch.setAttr('aria-label', 'Rama');
+          setIcon(btnBranch, 'folder-input');
+          btnBranch.onclick = async (e) => {
             e.stopPropagation();
-            if (e.shiftKey) {
-              await this.assignZettel(node, 'branch');
-            } else {
-              await this.createZettel(node, 'branch');
-            }
+            if (e.shiftKey) await this.assignZettel(node, 'branch');
+            else await this.createZettel(node, 'branch');
           };
         }
       } catch (_e) {
@@ -624,50 +546,42 @@ class FolgezettelView extends ItemView {
         try {
           await this.app.workspace.getLeaf(false).openFile(node.file);
         } catch (_e) {
-          console.error('Error opening file:', _e);
           await this.app.workspace.getLeaf(true).openFile(node.file);
         }
       };
 
       if (expanded[node.zid]) {
-        // Crear contenedor para hijos que muestra la línea vertical
         const childrenContainer = treeItem.createEl('div', { cls: 'tree-item-children' });
-        for (const child of node.children) renderNode(child, depth + 1, childrenContainer);
-
-        // (Removed per-level placeholder row — branch creation now via right-aligned button)
+        for (const child of node.children) renderNode(child, currentDepth + 1, childrenContainer);
       }
     };
 
-    Object.values(roots).forEach((node) => renderNode(node, 0));
+    rootNodes.forEach((node) => renderNode(node, 0));
 
-    // Añadir opción al final para crear un área nueva alineada con el nivel raíz
     try {
-      const topKeys = Object.keys(roots)
-        .map((k) => parseInt(k, 10))
+      const topKeys = items
+        .map((it) => (/^\d+$/.test(it.zid) ? parseInt(it.zid, 10) : NaN))
         .filter((n) => !isNaN(n));
       const maxTop = topKeys.length ? Math.max(...topKeys) : 0;
       const nextArea = maxTop + 1;
 
-      // Crear un nodo visual con la misma estructura que renderNode
       const treeItem = this.listEl.createEl('div', { cls: 'tree-item create-area' });
-      const self = treeItem.createEl('div', { cls: 'tree-item-self' });
+      const self = treeItem.createEl('div', { cls: 'tree-item-self is-clickable' });
 
-      // Zid area (icono plus en el lugar del zid)
-      const zidEl = self.createEl('span', { cls: 'fzz-zid' });
-      // Mostrar el número correlativo donde normalmente va el ZID
-      zidEl.title = String(nextArea);
-      zidEl.textContent = String(nextArea);
+      // Agrupamos en un mismo contenedor también para "Crear área"
+      const innerEl = self.createEl('div', { cls: 'tree-item-inner fzz-title' });
 
-      // Texto alineado donde va el título (en cursiva)
-      const titleEl = self.createEl('span', {
-        text: ` ${this.plugin.i18n.t('action.createArea')}`,
-        cls: 'fzz-title',
-      });
-      // Title italics handled by CSS for the create-area: .tree-item.create-area .fzz-title
+      const zidSpan = innerEl.createEl('span', { text: String(nextArea), cls: 'fzz-zid' });
+      zidSpan.style.fontFamily = 'var(--font-monospace, monospace)';
+      zidSpan.style.marginRight = '8px';
+      zidSpan.style.color = 'var(--text-muted)';
+
+      innerEl.createEl('span', { text: this.plugin.i18n.t('action.createArea') || 'Crear área' });
 
       self.onclick = async () => {
         const zid = String(nextArea);
-        const baseName = this.plugin.i18n.t('note.untitled');
+        const uuid = generateUUID();
+        const baseName = this.plugin.i18n.t('note.untitled') || 'Sin título';
         let fileName = baseName;
         let idx = 1;
         while (this.app.vault.getFiles().some((f) => f.basename === fileName)) {
@@ -675,19 +589,370 @@ class FolgezettelView extends ItemView {
           idx += 1;
         }
 
-        const content = `---\nzid: ${zid}\n---\n`;
+        const content = `---\nzid: ${zid}\nuuid: ${uuid}\n---\n`;
         const newFile = await this.app.vault.create(`${fileName}.md`, content);
-        try {
-          await this.app.workspace.getLeaf(false).openFile(newFile);
-        } catch (_e) {
-          console.error('Error opening new area file:', _e);
-          await this.app.workspace.getLeaf(true).openFile(newFile);
-        }
+        await this.app.workspace.getLeaf(false).openFile(newFile);
         this.refreshViews();
       };
     } catch (e) {
       console.error('Error creating new area:', e);
     }
+  }
+}
+
+class FolgezettelGraphView extends ItemView {
+  private plugin: FolgezettelPlugin;
+
+  constructor(leaf: WorkspaceLeaf, plugin: FolgezettelPlugin) {
+    super(leaf);
+    this.plugin = plugin;
+  }
+
+  getViewType() {
+    return GRAPH_VIEW_TYPE;
+  }
+
+  getDisplayText() {
+    return this.plugin.i18n.t('view.graphTitle') || 'Folgezettel Graph';
+  }
+
+  getIcon() {
+    return 'graph';
+  }
+
+  async onOpen() {
+    const container = this.containerEl.children[1] as HTMLElement;
+    container.empty();
+
+    const wrapper = container.createEl('div', { cls: 'fzz-graph-wrapper' });
+
+    // Determine current ZID from active file (if any)
+    const active = this.app.workspace.getActiveFile();
+    let currentZid: string | null = null;
+    if (active) {
+      const content = await this.app.vault.read(active);
+      const m = content.match(/^---\n([\s\S]*?)\n---/);
+      if (m) {
+        const zidMatch = m[1].match(/^\s*zid\s*:\s*(.+)$/im) || m[1].match(/^\s*ZID\s*:\s*(.+)$/im);
+        if (zidMatch) currentZid = zidMatch[1].trim().replace(/^['"]|['"]$/g, '');
+      }
+    }
+
+    const items = await this.collectZidFiles();
+    if (!currentZid) {
+      wrapper.createEl('div', { text: this.plugin.i18n.t('notice.noActiveZid') || 'No ZID in active note to show graph.' });
+      return;
+    }
+
+    const layout = this.buildLayout(currentZid, items.map((it) => it.zid));
+    if (layout.nodes.length === 0) {
+      wrapper.createEl('div', { text: this.plugin.i18n.t('notice.noZids') || 'No ZIDs found for area.' });
+      return;
+    }
+
+    this.renderLayout(wrapper, layout, items, currentZid);
+  }
+
+  async collectZidFiles(): Promise<{ file: TFile; zid: string }[]> {
+    const files = this.app.vault.getMarkdownFiles();
+    const res: { file: TFile; zid: string }[] = [];
+
+    for (const f of files) {
+      const content = await this.app.vault.cachedRead(f);
+      let zid: string | undefined;
+      const m = content.match(/^---\n([\s\S]*?)\n---/);
+      if (m) {
+        const zidMatch = m[1].match(/^\s*zid\s*:\s*(.+)$/im) || m[1].match(/^\s*ZID\s*:\s*(.+)$/im);
+        if (zidMatch) zid = zidMatch[1].trim().replace(/^['"]|['"]$/g, '');
+      }
+      if (zid) res.push({ file: f, zid });
+    }
+
+    return res;
+  }
+
+  // ===== Layout algorithm (ported from Swift buildLayout) =====
+  private buildLayout(currentZid: string, allZidsInput: string[]) {
+    const R = 26;
+    const D = R * 2;
+    const hGap = 22;
+    const vGap = 28;
+
+    const areaNumber = (zid: string): number | null => {
+      const t = zid.trim();
+      let d = '';
+      for (const ch of t) { if (/\d/.test(ch)) d += ch; else break; }
+      return d ? parseInt(d, 10) : null;
+    };
+
+    const area = areaNumber(currentZid);
+    if (area === null) return { nodes: [], edges: [], size: { width: 0, height: 0 }, cx: (_: number) => 0, cy: (_: number) => 0 };
+
+    const byZid: Record<string, { id: string; zid: string }> = {};
+    for (const z of allZidsInput) {
+      const zt = z.trim();
+      if (!zt) continue;
+      if (areaNumber(zt) !== area) continue;
+      byZid[zt] = { id: zt, zid: zt };
+    }
+
+    const allZids = Object.keys(byZid).sort(compareZid);
+    if (allZids.length === 0) return { nodes: [], edges: [], size: { width: 0, height: 0 }, cx: (_: number) => 0, cy: (_: number) => 0 };
+
+    type CKind = 'num' | 'upper' | 'lower' | 'sep' | 'none';
+    const ckind = (ch: string): CKind => {
+      if (ch === '/') return 'sep';
+      if (/\d/.test(ch)) return 'num';
+      if (/[A-Z]/.test(ch)) return 'upper';
+      if (/[a-z]/.test(ch)) return 'lower';
+      return 'none';
+    };
+
+    const splitZid = (zid: string): string[] => {
+      const tokens: string[] = [];
+      let cur = '';
+      let prevKind: CKind = 'none';
+      for (const ch of zid) {
+        const k = ckind(ch);
+        if (k === 'sep') {
+          if (cur !== '') { tokens.push(cur); cur = ''; }
+          tokens.push(ch); prevKind = 'sep'; continue;
+        }
+        if (prevKind !== 'none' && prevKind !== 'sep' && k !== prevKind && k !== 'none') {
+          if (cur !== '') { tokens.push(cur); cur = ''; }
+        }
+        cur += ch;
+        if (k !== 'none') prevKind = k;
+      }
+      if (cur !== '') tokens.push(cur);
+      return tokens;
+    };
+
+    const isSep = (s: string) => s === '/';
+
+    const isAnc = (ancestor: string, descendant: string) => {
+      const at = splitZid(ancestor), dt = splitZid(descendant);
+      if (dt.length <= at.length) return false;
+      for (let i = 0; i < at.length; i++) if (at[i] !== dt[i]) return false;
+      return true;
+    };
+
+    const isBranch = (zid: string) => {
+      const toks = splitZid(zid);
+      const segs = toks.filter((t) => !isSep(t));
+      const last = segs[segs.length - 1];
+      if (!last) return false;
+      if (segs.length <= 2) return false;
+      const first = last[0];
+      if (/\d/.test(first)) {
+        if (segs.length >= 2 && /[a-zA-Z]/.test(segs[segs.length - 2].slice(-1))) {
+          return toks.length >= 2 && isSep(toks[toks.length - 2]);
+        }
+        return true;
+      }
+      if (/[A-Z]/.test(first)) return true;
+      if (/[a-z]/.test(first)) {
+        return segs.length >= 2 && /[A-Z]/.test(segs[segs.length - 2].slice(-1));
+      }
+      return false;
+    };
+
+    const parentZid = (zid: string): string | null => {
+      const toks = splitZid(zid);
+      if (toks.length <= 1) return null;
+      let pt = toks.slice(0, toks.length - 1);
+      if (pt.length && isSep(pt[pt.length - 1])) pt = pt.slice(0, pt.length - 1);
+      const exact = allZids.find((a) => {
+        const sa = splitZid(a);
+        if (sa.length !== pt.length) return false;
+        for (let i = 0; i < sa.length; i++) if (sa[i] !== pt[i]) return false;
+        return true;
+      });
+      if (exact) return exact;
+      const anc = allZids.filter((a) => splitZid(a).length === pt.length && isAnc(a, zid)).pop();
+      if (anc) return anc;
+      if (pt.length > 1) {
+        let pt2 = pt.slice(0, pt.length - 1);
+        if (pt2.length && isSep(pt2[pt2.length - 1])) pt2 = pt2.slice(0, pt2.length - 1);
+        const exact2 = allZids.find((a) => {
+          const sa = splitZid(a);
+          if (sa.length !== pt2.length) return false;
+          for (let i = 0; i < sa.length; i++) if (sa[i] !== pt2[i]) return false;
+          return true;
+        });
+        if (exact2) return exact2;
+        return allZids.filter((a) => splitZid(a).length === pt2.length && isAnc(a, zid)).pop() || null;
+      }
+      return null;
+    };
+
+    const hasChildren = (zid: string) => allZids.some((a) => parentZid(a) === zid);
+
+    const makeNode = (zid: string) => {
+      const n = byZid[zid] ? { id: byZid[zid].id, zid } : { id: zid, zid };
+      return { ...n, hasChildren: hasChildren(zid) };
+    };
+
+    const colByZid: Record<string, number> = {};
+    const rowByZid: Record<string, number> = {};
+    const nextFreeCol: Record<number, number> = {};
+
+    const place = (zid: string, parentCol: number, row: number): number => {
+      const col = Math.max(nextFreeCol[row] ?? 0, parentCol + 1);
+      colByZid[zid] = col;
+      rowByZid[zid] = row;
+      nextFreeCol[row] = col + 1;
+
+      const kids = allZids.filter((a) => parentZid(a) === zid).sort(compareZid);
+      const branchKids = kids.filter(isBranch);
+      const seqKids = kids.filter((k) => !isBranch(k));
+
+      let branchRowCursor = row + 1;
+      for (const br of branchKids) {
+        place(br, col, branchRowCursor);
+
+        const descRows: number[] = Object.keys(rowByZid).map((z) => {
+          const r = rowByZid[z];
+          if (r === undefined) return -Infinity;
+          // is descendant of br?
+          if (z === br) return r;
+          let cur: string | null = z;
+          while (cur) {
+            if (cur === br) return r;
+            cur = parentZid(cur);
+            if (!cur) break;
+          }
+          return -Infinity;
+        }).filter((n) => n !== -Infinity);
+
+        const maxDescRow = descRows.length ? Math.max(...descRows) : branchRowCursor;
+        branchRowCursor = Math.max(branchRowCursor, maxDescRow + 1);
+      }
+
+      if (branchKids.length > 0) {
+        const descCols: number[] = Object.keys(colByZid).map((z) => {
+          const r = rowByZid[z];
+          if (r === undefined || r <= row) return -Infinity;
+          let cur: string | null = z;
+          while (cur) {
+            if (cur === zid) return colByZid[z];
+            cur = parentZid(cur);
+            if (!cur) break;
+          }
+          return -Infinity;
+        }).filter((n) => n !== -Infinity);
+        const maxDescendantCol = descCols.length ? Math.max(...descCols) : col;
+        nextFreeCol[row] = Math.max(nextFreeCol[row] ?? 0, maxDescendantCol + 1);
+      }
+
+      for (const seq of seqKids) {
+        place(seq, col, row);
+      }
+
+      return col;
+    };
+
+    const areaRoot = allZids.find((z) => parentZid(z) === null) || allZids[0];
+    place(areaRoot, -1, 0);
+
+    const layoutNodes: { node: ReturnType<typeof makeNode>; col: number; row: number }[] = [];
+    const edges: { fromCol: number; fromRow: number; toCol: number; toRow: number; kind: 'sequence' | 'branch' }[] = [];
+
+    for (const zid of allZids) {
+      const col = colByZid[zid];
+      const row = rowByZid[zid];
+      if (col === undefined || row === undefined) continue;
+      const n = makeNode(zid);
+      layoutNodes.push({ node: n, col, row });
+      const p = parentZid(zid);
+      if (p) {
+        const pc = colByZid[p];
+        const pr = rowByZid[p];
+        if (pc !== undefined && pr !== undefined) {
+          edges.push({ fromCol: pc, fromRow: pr, toCol: col, toRow: row, kind: isBranch(zid) ? 'branch' : 'sequence' });
+        }
+      }
+    }
+
+    const maxCol = layoutNodes.map((n) => n.col).reduce((a, b) => Math.max(a, b), 0);
+    const maxRow = layoutNodes.map((n) => n.row).reduce((a, b) => Math.max(a, b), 0);
+    const w = (maxCol + 1) * (D + hGap) + D;
+    const h = (maxRow + 1) * (D + vGap) + D;
+    const size = { width: w + 48, height: h + 48 };
+
+    const cx = (col: number) => col * (D + hGap) + R + 24;
+    const cy = (row: number) => row * (D + vGap) + R + 24;
+
+    return { nodes: layoutNodes, edges, size, cx, cy } as const;
+  }
+
+  private renderLayout(container: HTMLElement, layout: any, items: { file: TFile; zid: string }[], highlightZid?: string) {
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('width', String(layout.size.width));
+    svg.setAttribute('height', String(layout.size.height));
+    svg.style.display = 'block';
+    svg.style.margin = '8px';
+
+    // Draw edges
+    for (const edge of layout.edges) {
+      const from = { x: layout.cx(edge.fromCol), y: layout.cy(edge.fromRow) };
+      const to = { x: layout.cx(edge.toCol), y: layout.cy(edge.toRow) };
+      const path = document.createElementNS(svgNS, 'path');
+      if (edge.kind === 'sequence') {
+        path.setAttribute('d', `M ${from.x} ${from.y} L ${to.x} ${to.y}`);
+        path.setAttribute('stroke', '#D4AF37');
+      } else {
+        path.setAttribute('d', `M ${from.x} ${from.y} L ${from.x} ${to.y} L ${to.x} ${to.y}`);
+        path.setAttribute('stroke', '#e05454');
+      }
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-width', '4');
+      path.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(path);
+    }
+
+    // Draw nodes
+    for (const ln of layout.nodes) {
+      const cx = layout.cx(ln.col);
+      const cy = layout.cy(ln.row);
+
+      const g = document.createElementNS(svgNS, 'g');
+      g.setAttribute('transform', `translate(${cx}, ${cy})`);
+
+      const circle = document.createElementNS(svgNS, 'circle');
+      circle.setAttribute('r', String(26));
+      circle.setAttribute('cx', '0');
+      circle.setAttribute('cy', '0');
+      circle.setAttribute('fill', ln.node.zid === highlightZid ? '#ffd6a5' : '#ffffff');
+      circle.setAttribute('stroke', '#000000');
+      circle.setAttribute('stroke-width', '2');
+      g.appendChild(circle);
+
+      const text = document.createElementNS(svgNS, 'text');
+      text.setAttribute('x', '0');
+      text.setAttribute('y', '4');
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('font-size', '10');
+      text.setAttribute('font-family', 'monospace');
+      text.textContent = ln.node.zid;
+      g.appendChild(text);
+
+      // Click to open note if exists
+      const match = items.find((it) => it.zid === ln.node.zid);
+      if (match) {
+        g.style.cursor = 'pointer';
+        g.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          try { await this.app.workspace.getLeaf(false).openFile(match.file); }
+          catch { await this.app.workspace.getLeaf(true).openFile(match.file); }
+        });
+      }
+
+      svg.appendChild(g);
+    }
+
+    container.appendChild(svg);
   }
 }
 
@@ -708,7 +973,7 @@ class ZidAssignModal extends FuzzySuggestModal<TFile> {
     this.newZid = newZid;
     this.onChoose = onChoose;
     if (placeholder) this.setPlaceholder(placeholder);
-    else this.setPlaceholder(new I18n('auto').t('modal.assignPlaceholder', { zid: newZid }));
+    else this.setPlaceholder(`Asignar ${newZid} a...`);
   }
 
   getItems(): TFile[] {
@@ -746,8 +1011,7 @@ class ConfirmModal extends Modal {
   }
 
   onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
+    this.contentEl.empty();
   }
 
   private closeAndResolve(val: boolean) {
