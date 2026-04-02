@@ -2,12 +2,10 @@ import { App, PluginSettingTab, Setting, Plugin } from 'obsidian';
 import { I18n } from './i18n';
 
 export interface PluginSettings {
-  separator: string;
   lang?: string; // 'auto' | 'en' | 'es'
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
-  separator: '.',
   lang: 'auto',
 };
 
@@ -27,27 +25,7 @@ export class FolgezettelSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName(i18n.t('settings.title')).setHeading();
 
-    new Setting(containerEl)
-      .setName(i18n.t('settings.separator.name'))
-      .setDesc(i18n.t('settings.separator.desc'))
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOption('.', '.')
-          .addOption(',', ',')
-          .addOption('/', '/')
-          .setValue(this.plugin.settings.separator || '.')
-          .onChange(async (value) => {
-            this.plugin.settings.separator = value;
-            await this.plugin.saveSettings();
-            // Re-render any open Folgezettel views so the new separator takes effect
-            try {
-              this.plugin.refreshViews();
-            } catch (_e) {
-              console.error('Error refreshing views after changing separator:', _e);
-            }
-            this.display();
-          })
-      );
+    // NOTE: separator setting is deprecated — plugin now uses '/' only.
 
     new Setting(containerEl)
       .setName(i18n.t('settings.lang.name'))
