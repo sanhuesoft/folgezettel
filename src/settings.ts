@@ -56,5 +56,5 @@ interface FolgezettelPluginLike extends Plugin {
   settings: PluginSettings;
   i18n: I18n;
   saveSettings: () => Promise<void>;
-  refreshViews?: () => void;
+  refreshViews: () => void;
 }
