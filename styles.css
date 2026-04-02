@@ -101,3 +101,42 @@
 /* Título de "Crear área" en cursiva */
 .tree-item.create-area .fzz-title { font-style: italic; opacity: 0.8; }
 .tree-item.create-area .tree-item-self { cursor: pointer; }
+
+/* ── Citation refs in Reading view ─────────────────────────────────────────
+   sup.bibman-cite text is set to "[REF]" by JS (replaceCitations).
+   Just style it to look like a reference superscript. */
+.markdown-preview-view sup.bibman-cite {
+  cursor: pointer;
+  font-size: 0.8em;
+  color: var(--link-color, var(--text-accent));
+  vertical-align: super;
+  line-height: 0;
+}
+
+/* Hover popup for bib references */
+.bibman-popup {
+  position: fixed;
+  left: var(--bibman-x, 0px);
+  top: var(--bibman-y, 0px);
+  background: var(--background-modifier-card, #fff);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  padding: 10px 14px;
+  max-width: 320px;
+  font-size: 13px;
+  z-index: 10000;
+  line-height: 1.5;
+  pointer-events: none;
+}
+.bibman-popup p { margin: 0; }
+.bibman-popup__title { font-weight: 600; margin-bottom: 4px !important; }
+.bibman-popup__author { color: var(--text-muted); font-size: 12px; margin-bottom: 2px !important; }
+.bibman-popup__year { color: var(--text-muted); font-size: 12px; }
+.bibman-popup__error { color: var(--text-error); font-size: 12px; }
+
+/* {{...}} citation syntax in source / live-preview — same colour as comments, no background */
+.bibman-inline-cite {
+  color: var(--text-faint, var(--text-muted));
+}
