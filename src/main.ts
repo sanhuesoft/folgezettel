@@ -512,7 +512,7 @@ class FolgezettelView extends ItemView {
           actions.style.marginLeft = '8px';
 
           const btnNext = actions.createEl('button', { cls: 'fzz-action-btn' });
-          btnNext.setAttr('aria-label', 'Siguiente');
+          btnNext.setAttr('aria-label', this.plugin.i18n.t('menu.createNext'));
           setIcon(btnNext, 'arrow-right');
           btnNext.onclick = async (e) => {
             e.stopPropagation();
@@ -521,7 +521,7 @@ class FolgezettelView extends ItemView {
           };
 
           const btnInserted = actions.createEl('button', { cls: 'fzz-action-btn' });
-          btnInserted.setAttr('aria-label', 'Insertada');
+          btnInserted.setAttr('aria-label', this.plugin.i18n.t('menu.createInserted'));
           setIcon(btnInserted, 'corner-down-right');
           btnInserted.onclick = async (e) => {
             e.stopPropagation();
@@ -530,13 +530,24 @@ class FolgezettelView extends ItemView {
           };
 
           const btnBranch = actions.createEl('button', { cls: 'fzz-action-btn' });
-          btnBranch.setAttr('aria-label', 'Rama');
+          btnBranch.setAttr('aria-label', this.plugin.i18n.t('menu.createBranch'));
           setIcon(btnBranch, 'folder-input');
           btnBranch.onclick = async (e) => {
             e.stopPropagation();
             if (e.shiftKey) await this.assignZettel(node, 'branch');
             else await this.createZettel(node, 'branch');
           };
+
+          // Update aria-labels with the computed ZID once available
+          Promise.all([
+            this.computeNewZid(node, 'next'),
+            this.computeNewZid(node, 'inserted'),
+            this.computeNewZid(node, 'branch'),
+          ]).then(([zNext, zInserted, zBranch]) => {
+            btnNext.setAttr('aria-label', `${this.plugin.i18n.t('menu.createNext')} (${zNext})`);
+            btnInserted.setAttr('aria-label', `${this.plugin.i18n.t('menu.createInserted')} (${zInserted})`);
+            btnBranch.setAttr('aria-label', `${this.plugin.i18n.t('menu.createBranch')} (${zBranch})`);
+          }).catch(() => { /* leave basic labels on error */ });
         }
       } catch (_e) {
         console.error('Error creating action buttons:', _e);
