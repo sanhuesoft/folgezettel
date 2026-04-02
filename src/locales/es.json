@@ -8,7 +8,7 @@
   "settings.lang.en": "Inglés",
   "settings.lang.es": "Español"
   ,
-  "command.open": "Abrir vista Folgezettel",
+  "command.open": "Abrir esquema de Folgezettel",
   "command.openGraph": "Abrir vista de gráfico de Folgezettel",
   "view.title": "Folgezettel",
   "view.graphTitle": "Vista de grafo de Folgezettel",

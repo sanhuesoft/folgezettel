@@ -8,7 +8,7 @@
   "settings.lang.en": "English",
   "settings.lang.es": "Spanish"
   ,
-  "command.open": "Open Folgezettel sidebar",
+  "command.open": "Open Folgezettel outline",
   "command.openGraph": "Open Folgezettel graph view",
   "view.title": "Folgezettel",
   "view.graphTitle": "Folgezettel Graph",
