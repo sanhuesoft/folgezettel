@@ -1,4 +1,4 @@
-# Obsidian Folgezettel Plugin
+# Folgezettel for Obsidian
 
 This plugin allows you to implement the **Folgezettel architecture** directly within your Obsidian vault. By reading the `zid` property from each note's frontmatter, it generates a structural hierarchy that replicates the specific nomenclature used in Niklas Luhmann's **Zettelkasten II** with the highest possible precision.
 

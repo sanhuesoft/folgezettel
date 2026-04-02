@@ -11,6 +11,7 @@
   "command.open": "Abrir vista Folgezettel",
   "command.openGraph": "Abrir vista de gráfico de Folgezettel",
   "view.title": "Folgezettel",
+  "view.graphTitle": "Vista de grafo de Folgezettel",
   "menu.createNext": "Crear nota siguiente",
   "menu.assignNext": "Asignar nota siguiente",
   "menu.createBranch": "Crear nota rama",

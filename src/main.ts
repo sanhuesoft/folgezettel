@@ -620,9 +620,17 @@ class FolgezettelGraphView extends ItemView {
     return 'graph';
   }
 
+  async onClose() {
+    // Remove any lingering tooltip appended to document.body
+    document.querySelectorAll('.fzz-graph-tooltip').forEach((el) => el.remove());
+  }
+
   async onOpen() {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
+
+    // Use a fresh I18n instance to ensure locale JSON changes are picked up
+    const i18n = new I18n(this.plugin.settings.lang);
 
     const wrapper = container.createEl('div', { cls: 'fzz-graph-wrapper' });
 
@@ -640,22 +648,22 @@ class FolgezettelGraphView extends ItemView {
 
     const items = await this.collectZidFiles();
     if (!currentZid) {
-      wrapper.createEl('div', { text: this.plugin.i18n.t('notice.noActiveZid') || 'No ZID in active note to show graph.' });
+      wrapper.createEl('div', { text: i18n.t('notice.noActiveZid') || 'No ZID in active note to show graph.' });
       return;
     }
 
     const layout = this.buildLayout(currentZid, items.map((it) => it.zid));
     if (layout.nodes.length === 0) {
-      wrapper.createEl('div', { text: this.plugin.i18n.t('notice.noZids') || 'No ZIDs found for area.' });
+      wrapper.createEl('div', { text: i18n.t('notice.noZids') || 'No ZIDs found for area.' });
       return;
     }
 
     this.renderLayout(wrapper, layout, items, currentZid);
   }
 
-  async collectZidFiles(): Promise<{ file: TFile; zid: string }[]> {
+  async collectZidFiles(): Promise<{ file: TFile; zid: string; title: string }[]> {
     const files = this.app.vault.getMarkdownFiles();
-    const res: { file: TFile; zid: string }[] = [];
+    const res: { file: TFile; zid: string; title: string }[] = [];
 
     for (const f of files) {
       const content = await this.app.vault.cachedRead(f);
@@ -665,7 +673,12 @@ class FolgezettelGraphView extends ItemView {
         const zidMatch = m[1].match(/^\s*zid\s*:\s*(.+)$/im) || m[1].match(/^\s*ZID\s*:\s*(.+)$/im);
         if (zidMatch) zid = zidMatch[1].trim().replace(/^['"]|['"]$/g, '');
       }
-      if (zid) res.push({ file: f, zid });
+      let title = f.basename;
+      if (m) {
+        const titleMatch = m[1].match(/^\s*title\s*:\s*(.+)$/im) || m[1].match(/^\s*Title\s*:\s*(.+)$/im);
+        if (titleMatch) title = titleMatch[1].trim().replace(/^['"]|['"]$/g, '');
+      }
+      if (zid) res.push({ file: f, zid, title });
     }
 
     return res;
@@ -886,13 +899,38 @@ class FolgezettelGraphView extends ItemView {
     return { nodes: layoutNodes, edges, size, cx, cy } as const;
   }
 
-  private renderLayout(container: HTMLElement, layout: any, items: { file: TFile; zid: string }[], highlightZid?: string) {
+  private renderLayout(container: HTMLElement, layout: any, items: { file: TFile; zid: string; title: string }[], highlightZid?: string) {
     const svgNS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('width', String(layout.size.width));
     svg.setAttribute('height', String(layout.size.height));
     svg.style.display = 'block';
     svg.style.margin = '8px';
+
+    // Make container a positioning context for absolute tooltip — no longer needed with fixed positioning
+
+    // Tooltip — position: fixed so coordinates are always relative to the
+    // viewport regardless of how large the canvas is or how much is scrolled.
+    const TOOLTIP_WIDTH = 260; // px
+    const tooltip = document.createElement('div');
+    tooltip.className = 'fzz-graph-tooltip';
+    tooltip.style.position = 'fixed';
+    tooltip.style.pointerEvents = 'none';
+    tooltip.style.visibility = 'hidden';
+    tooltip.style.padding = '6px 8px';
+    tooltip.style.borderRadius = '6px';
+    tooltip.style.background = 'var(--background-modifier-card, #fff)';
+    tooltip.style.color = 'var(--text-normal, #000)';
+    tooltip.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
+    tooltip.style.fontSize = '12px';
+    tooltip.style.zIndex = '9999';
+    tooltip.style.width = `${TOOLTIP_WIDTH}px`;
+    tooltip.style.whiteSpace = 'normal';
+    tooltip.style.wordBreak = 'break-word';
+    tooltip.style.textAlign = 'left';
+    tooltip.style.boxSizing = 'border-box';
+    // Append to body so fixed positioning is never affected by a transformed ancestor
+    document.body.appendChild(tooltip);
 
     // Draw edges
     for (const edge of layout.edges) {
@@ -938,7 +976,7 @@ class FolgezettelGraphView extends ItemView {
       text.textContent = ln.node.zid;
       g.appendChild(text);
 
-      // Click to open note if exists
+      // Click to open note if exists; show tooltip on hover with note title
       const match = items.find((it) => it.zid === ln.node.zid);
       if (match) {
         g.style.cursor = 'pointer';
@@ -946,6 +984,35 @@ class FolgezettelGraphView extends ItemView {
           e.stopPropagation();
           try { await this.app.workspace.getLeaf(false).openFile(match.file); }
           catch { await this.app.workspace.getLeaf(true).openFile(match.file); }
+        });
+
+        g.addEventListener('mouseenter', (ev) => {
+          // Position tooltip relative to the node's viewport position (fixed distance)
+          const gRect = (g as SVGGraphicsElement).getBoundingClientRect();
+          tooltip.textContent = match.title || match.file.basename;
+          tooltip.style.visibility = 'visible';
+
+          const vw = document.documentElement.clientWidth;
+          const vh = document.documentElement.clientHeight;
+          const half = TOOLTIP_WIDTH / 2;
+
+          // center X of node in viewport
+          const rawCenterX = gRect.left + gRect.width / 2;
+          const centerX = Math.min(Math.max(rawCenterX, half + 8), vw - half - 8);
+          tooltip.style.left = `${centerX - half}px`;
+
+          // prefer placing below the node; if not enough space, place above
+          requestAnimationFrame(() => {
+            const ttHeight = tooltip.offsetHeight || 0;
+            const preferredBelow = gRect.bottom + 8; // px below node
+            const belowFits = preferredBelow + ttHeight <= vh - 8;
+            const top = belowFits ? preferredBelow : Math.max(gRect.top - ttHeight - 8, 8);
+            tooltip.style.top = `${top}px`;
+          });
+        });
+
+        g.addEventListener('mouseleave', () => {
+          tooltip.style.visibility = 'hidden';
         });
       }
 

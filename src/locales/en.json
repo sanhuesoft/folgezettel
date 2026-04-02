@@ -11,6 +11,7 @@
   "command.open": "Open Folgezettel sidebar",
   "command.openGraph": "Open Folgezettel graph view",
   "view.title": "Folgezettel",
+  "view.graphTitle": "Folgezettel Graph",
   "menu.createNext": "Create next note",
   "menu.assignNext": "Assign next note",
   "menu.createBranch": "Create branch note",
