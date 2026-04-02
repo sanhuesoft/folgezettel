@@ -3,16 +3,28 @@
   "version": "0.1.0",
   "description": "Build a Folgezettel based on the zid property in your notes' frontmatter",
   "main": "main.js",
+  "type": "module",
   "scripts": {
-    "lint": "eslint src/**/*.ts",
-    "build": "esbuild src/main.ts --bundle --platform=node --format=cjs --target=es2020 --outfile=main.js --minify --external:obsidian --external:@codemirror/view --external:@codemirror/state",
-    "dev": "esbuild src/main.ts --bundle --platform=node --format=cjs --target=es2020 --outfile=main.js --sourcemap --watch --external:obsidian --external:@codemirror/view --external:@codemirror/state"
+ 		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"version": "node version-bump.mjs && git add manifest.json versions.json",
+		"lint": "eslint ."
   },
   "devDependencies": {
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.41.0",
-    "esbuild": "^0.18.0",
     "eslint": "^10.0.3",
-    "eslint-plugin-obsidianmd": "^0.1.9"
-  }
+    "@types/node": "^16.11.6",
+		"esbuild": "0.25.5",
+		"eslint-plugin-obsidianmd": "0.1.9",
+		"globals": "14.0.0",
+		"tslib": "2.4.0",
+		"typescript": "^5.8.3",
+		"typescript-eslint": "8.35.1",
+		"@eslint/js": "9.30.1",
+		"jiti": "2.6.1"
+  },
+	"dependencies": {
+		"obsidian": "latest"
+	}
 }
