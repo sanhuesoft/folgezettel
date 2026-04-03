@@ -18,6 +18,11 @@ export class FolgezettelGraphView extends ItemView {
     document.querySelectorAll('.fzz-graph-tooltip').forEach((el) => el.remove());
   }
 
+  async refresh() {
+    document.querySelectorAll('.fzz-graph-tooltip').forEach((el) => el.remove());
+    await this.onOpen();
+  }
+
   async onOpen() {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();

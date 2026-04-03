@@ -69,6 +69,10 @@ export default class FolgezettelPlugin extends Plugin {
     leaves.forEach((leaf) =>
       (leaf.view as FolgezettelView).renderList().catch((e) => console.error('Error rendering folgezettel view:', e)),
     );
+    const graphLeaves = this.app.workspace.getLeavesOfType(GRAPH_VIEW_TYPE);
+    graphLeaves.forEach((leaf) =>
+      (leaf.view as FolgezettelGraphView).refresh().catch((e) => console.error('Error refreshing graph view:', e)),
+    );
   }
 
   async getBibEntry(key: string): Promise<BibEntry | null> {
