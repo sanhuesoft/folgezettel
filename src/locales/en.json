@@ -27,6 +27,7 @@
   "notice.noCandidates": "No notes without ZID found in the vault.",
   "notice.zidAssigned": "ZID {zid} assigned to \"{name}\"",
   "notice.noFrontmatter": "No frontmatter found in the note.",
+  "notice.noActiveZid": "No ZID found in the active note. Open or create a note with a ZID to view the graph.",
   "notice.zidRemoved": "ZID removed from \"{name}\"",
   "notice.duplicatedZids": "Duplicated ZIDs detected: {list}",
   "confirm.removeZid": "Remove ZID {zid} from \"{name}\"? This cannot be undone.",

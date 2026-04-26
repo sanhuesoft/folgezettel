@@ -140,3 +140,26 @@
 .bibman-inline-cite {
   color: var(--text-faint, var(--text-muted));
 }
+
+/* Graph empty state (warning + message) */
+.fzz-graph-wrapper .fzz-graph-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+}
+.fzz-graph-wrapper .fzz-graph-warning-icon svg {
+  width: 56px;
+  height: 56px;
+  color: var(--text-accent);
+  opacity: 0.95;
+}
+.fzz-graph-wrapper .fzz-graph-empty-message {
+  margin-top: 12px;
+  text-align: center;
+  max-width: 420px;
+  font-size: 0.95em;
+  color: var(--text-muted);
+}

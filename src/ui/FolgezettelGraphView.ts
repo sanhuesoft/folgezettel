@@ -6,6 +6,10 @@ import FolgezettelPlugin from '../main';
 export const GRAPH_VIEW_TYPE = 'folgezettel-graph';
 
 export class FolgezettelGraphView extends ItemView {
+  private _rendering = false;
+  private _lastRenderAt = 0;
+  private readonly _refreshThresholdMs = 300;
+
   constructor(leaf: WorkspaceLeaf, private readonly plugin: FolgezettelPlugin) {
     super(leaf);
   }
@@ -19,11 +23,16 @@ export class FolgezettelGraphView extends ItemView {
   }
 
   async refresh() {
+    const now = Date.now();
+    if (this._rendering) return;
+    if (now - this._lastRenderAt < this._refreshThresholdMs) return;
     document.querySelectorAll('.fzz-graph-tooltip').forEach((el) => el.remove());
     await this.onOpen();
   }
 
   async onOpen() {
+    if (this._rendering) return;
+    this._rendering = true;
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
     const i18n = new I18n(this.plugin.settings.lang);
@@ -42,7 +51,15 @@ export class FolgezettelGraphView extends ItemView {
 
     const items = await this.collectZidFiles();
     if (!currentZid) {
-      wrapper.createEl('div', { text: i18n.t('notice.noActiveZid') || 'No ZID in active note to show graph.' });
+      const empty = wrapper.createEl('div', { cls: 'fzz-graph-empty' });
+      empty.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--text-muted);';
+      const icon = empty.createEl('div', { cls: 'fzz-graph-warning-icon' });
+      icon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 9v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 17h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      const msgText = i18n.t('notice.noActiveZid') || 'La nota activa no contiene un ZID. Abre o crea una nota con ZID para ver el grafo.';
+      const msg = empty.createEl('div', { text: msgText, cls: 'fzz-graph-empty-message' });
+      msg.style.cssText = 'margin-top:12px;text-align:center;max-width:420px;';
+      this._rendering = false;
+      this._lastRenderAt = Date.now();
       return;
     }
 
@@ -53,6 +70,8 @@ export class FolgezettelGraphView extends ItemView {
     }
 
     this.renderLayout(wrapper, layout, items, currentZid);
+    this._rendering = false;
+    this._lastRenderAt = Date.now();
   }
 
   async collectZidFiles(): Promise<{ file: TFile; zid: string; title: string }[]> {

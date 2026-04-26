@@ -42,6 +42,8 @@ export default class FolgezettelPlugin extends Plugin {
     this.registerEvent(this.app.vault.on('create', () => this.refreshViews()));
     this.registerEvent(this.app.vault.on('delete', () => this.refreshViews()));
     this.registerEvent(this.app.vault.on('rename', () => this.refreshViews()));
+    this.registerEvent(this.app.workspace.on('file-open', () => this.refreshViews()));
+    this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.refreshViews()));
     this.registerMarkdownPostProcessor((el, ctx) => bibPostProcessor(this, el, ctx));
     this.registerEditorExtension(citationEditorPlugin);
     this.bibSuggest = new BibEditorSuggest(this.app, this);

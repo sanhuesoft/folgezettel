@@ -27,6 +27,7 @@
   "notice.noCandidates": "No hay notas sin ZID en la bóveda.",
   "notice.zidAssigned": "ZID {zid} asignado a \"{name}\"",
   "notice.noFrontmatter": "No se encontró frontmatter en la nota.",
+  "notice.noActiveZid": "La nota activa no contiene un ZID. Abre o crea una nota con ZID para ver el grafo.",
   "notice.zidRemoved": "ZID eliminado de \"{name}\"",
   "notice.duplicatedZids": "ZIDs duplicados detectados: {list}",
   "confirm.removeZid": "Eliminar ZID {zid} de \"{name}\"? Esta acción no puede deshacerse.",
