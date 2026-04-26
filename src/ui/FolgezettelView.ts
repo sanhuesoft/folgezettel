@@ -1,5 +1,4 @@
 import { ItemView, Menu, Notice, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
-import { I18n } from '../i18n';
 import { ZettelType } from '../types';
 import { calculateDepth, compareZid, generateUUID } from '../utils/zid';
 import { ConfirmModal, ZidAssignModal } from './modals';
@@ -247,7 +246,7 @@ export class FolgezettelView extends ItemView {
       if (node.children.length > 0) {
         if (expanded[node.zid] === undefined) expanded[node.zid] = true;
         const arrow = self.createEl('div', { cls: 'tree-item-icon collapse-icon' });
-        arrow.style.flexShrink = '0';
+        arrow.setCssProps({ 'flex-shrink': '0' });
         arrow.classList.add(expanded[node.zid] ? 'is-collapsed' : 'is-expanded');
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('viewBox', '0 0 16 16');
@@ -269,13 +268,11 @@ export class FolgezettelView extends ItemView {
 
       const innerEl = self.createEl('div', { cls: 'tree-item-inner fzz-title' });
       const zidSpan = innerEl.createEl('span', { text: node.zid, cls: 'fzz-zid' });
-      zidSpan.style.fontFamily = 'var(--font-monospace, monospace)';
-      zidSpan.style.marginRight = '8px';
-      zidSpan.style.color = 'var(--text-muted)';
+      zidSpan.setCssProps({ 'font-family': 'var(--font-monospace, monospace)', 'margin-right': '8px', color: 'var(--text-muted)' });
 
       if (duplicatedZids.includes(node.zid)) {
         zidSpan.classList.add('fzz-zid-duplicate');
-        zidSpan.style.color = 'var(--text-error)';
+        zidSpan.setCssProps({ color: 'var(--text-error)' });
         zidSpan.title = `${node.zid} — ZID duplicado`;
       } else {
         zidSpan.title = node.zid;
@@ -286,11 +283,7 @@ export class FolgezettelView extends ItemView {
       try {
         if (!/^\d+$/.test(node.zid)) {
           const actions = self.createEl('div', { cls: 'fzz-actions' });
-          actions.style.display = 'flex';
-          actions.style.alignItems = 'center';
-          actions.style.flexShrink = '0';
-          actions.style.gap = '4px';
-          actions.style.marginLeft = '8px';
+          actions.setCssProps({ display: 'flex', 'align-items': 'center', 'flex-shrink': '0', gap: '4px', 'margin-left': '8px' });
 
           const btnNext = actions.createEl('button', { cls: 'fzz-action-btn' });
           btnNext.setAttr('aria-label', this.plugin.i18n.t('menu.createNext'));
@@ -336,7 +329,7 @@ export class FolgezettelView extends ItemView {
       self.onclick = async () => {
         try {
           await this.app.workspace.getLeaf(false).openFile(node.file);
-        } catch (_e) {
+        } catch {
           await this.app.workspace.getLeaf(true).openFile(node.file);
         }
       };
@@ -360,9 +353,7 @@ export class FolgezettelView extends ItemView {
       const self = treeItem.createEl('div', { cls: 'tree-item-self is-clickable' });
       const innerEl = self.createEl('div', { cls: 'tree-item-inner fzz-title' });
       const zidSpan = innerEl.createEl('span', { text: String(nextArea), cls: 'fzz-zid' });
-      zidSpan.style.fontFamily = 'var(--font-monospace, monospace)';
-      zidSpan.style.marginRight = '8px';
-      zidSpan.style.color = 'var(--text-muted)';
+      zidSpan.setCssProps({ 'font-family': 'var(--font-monospace, monospace)', 'margin-right': '8px', color: 'var(--text-muted)' });
       innerEl.createEl('span', { text: this.plugin.i18n.t('action.createArea') || 'Crear área' });
 
       self.onclick = async () => {

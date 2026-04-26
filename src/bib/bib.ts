@@ -9,7 +9,9 @@ import {
   MarkdownRenderChild,
   TFile,
 } from 'obsidian';
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { RangeSetBuilder } from '@codemirror/state';
 import { BibEntry } from '../types';
 
@@ -189,7 +191,7 @@ export function replaceCitations(root: HTMLElement): boolean {
         sup.className = 'bibman-cite';
         sup.dataset.bibkey = match[1];
         if (match[2]) sup.dataset.bibpages = match[2];
-        sup.textContent = '[REF]';
+        sup.textContent = '[ref]';
         frags.push(sup);
         cursor = match.index + match[0].length;
       }

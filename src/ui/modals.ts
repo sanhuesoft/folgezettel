@@ -16,7 +16,7 @@ export class ZidAssignModal extends FuzzySuggestModal<TFile> {
 
   getItems(): TFile[] { return this.files; }
   getItemText(file: TFile): string { return file.basename; }
-  async onChooseItem(file: TFile): Promise<void> { await this.onChoose(file); }
+  onChooseItem(file: TFile): void { void this.onChoose(file); }
 }
 
 // ── ConfirmModal ──────────────────────────────────────────────────────────────

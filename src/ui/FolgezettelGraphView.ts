@@ -52,12 +52,15 @@ export class FolgezettelGraphView extends ItemView {
     const items = await this.collectZidFiles();
     if (!currentZid) {
       const empty = wrapper.createEl('div', { cls: 'fzz-graph-empty' });
-      empty.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--text-muted);';
+      empty.setCssProps({ display: 'flex', 'flex-direction': 'column', 'align-items': 'center', 'justify-content': 'center', padding: '40px 20px', color: 'var(--text-muted)' });
       const icon = empty.createEl('div', { cls: 'fzz-graph-warning-icon' });
-      icon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 9v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 17h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      const svgEl = icon.createSvg('svg', { attr: { viewBox: '0 0 24 24', fill: 'none', xmlns: 'http://www.w3.org/2000/svg' } });
+      svgEl.createSvg('path', { attr: { d: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' } });
+      svgEl.createSvg('path', { attr: { d: 'M12 9v4', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' } });
+      svgEl.createSvg('path', { attr: { d: 'M12 17h.01', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' } });
       const msgText = i18n.t('notice.noActiveZid') || 'La nota activa no contiene un ZID. Abre o crea una nota con ZID para ver el grafo.';
       const msg = empty.createEl('div', { text: msgText, cls: 'fzz-graph-empty-message' });
-      msg.style.cssText = 'margin-top:12px;text-align:center;max-width:420px;';
+      msg.setCssProps({ 'margin-top': '12px', 'text-align': 'center', 'max-width': '420px' });
       this._rendering = false;
       this._lastRenderAt = Date.now();
       return;
@@ -290,13 +293,18 @@ export class FolgezettelGraphView extends ItemView {
 
   // ── SVG renderer ─────────────────────────────────────────────────────────
 
-  private renderLayout(container: HTMLElement, layout: any, items: { file: TFile; zid: string; title: string }[], highlightZid?: string) {
+  private renderLayout(container: HTMLElement, layout: {
+    nodes: ReadonlyArray<{ node: { zid: string }; col: number; row: number }>;
+    edges: ReadonlyArray<{ fromCol: number; fromRow: number; toCol: number; toRow: number; kind: string }>;
+    size: { width: number; height: number };
+    cx: (n: number) => number;
+    cy: (n: number) => number;
+  }, items: { file: TFile; zid: string; title: string }[], highlightZid?: string) {
     const svgNS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('width', String(layout.size.width));
     svg.setAttribute('height', String(layout.size.height));
-    svg.style.display = 'block';
-    svg.style.margin = '8px';
+    (svg as unknown as HTMLElement).setCssProps({ display: 'block', margin: '8px' });
 
     const TOOLTIP_WIDTH = 260;
     const tooltip = document.createElement('div');
@@ -359,16 +367,18 @@ export class FolgezettelGraphView extends ItemView {
 
       const match = items.find((it) => it.zid === ln.node.zid);
       if (match) {
-        g.style.cursor = 'pointer';
-        g.addEventListener('click', async (e) => {
+        (g as unknown as HTMLElement).setCssProps({ cursor: 'pointer' });
+        g.addEventListener('click', (e) => {
           e.stopPropagation();
-          try { await this.app.workspace.getLeaf(false).openFile(match.file); }
-          catch { await this.app.workspace.getLeaf(true).openFile(match.file); }
+          void (async () => {
+            try { await this.app.workspace.getLeaf(false).openFile(match.file); }
+            catch { await this.app.workspace.getLeaf(true).openFile(match.file); }
+          })();
         });
         g.addEventListener('mouseenter', () => {
           const gRect = (g as SVGGraphicsElement).getBoundingClientRect();
           tooltip.textContent = match.title || match.file.basename;
-          tooltip.style.visibility = 'visible';
+          tooltip.setCssProps({ visibility: 'visible' });
           const vw = document.documentElement.clientWidth;
           const vh = document.documentElement.clientHeight;
           const half = TOOLTIP_WIDTH / 2;
@@ -383,7 +393,7 @@ export class FolgezettelGraphView extends ItemView {
             tooltip.style.top = `${top}px`;
           });
         });
-        g.addEventListener('mouseleave', () => { tooltip.style.visibility = 'hidden'; });
+        g.addEventListener('mouseleave', () => { tooltip.setCssProps({ visibility: 'hidden' }); });
       }
 
       svg.appendChild(g);

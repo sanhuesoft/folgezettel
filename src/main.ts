@@ -12,7 +12,7 @@ export default class FolgezettelPlugin extends Plugin {
   private bibSuggest: EditorSuggest<TFile> | null = null;
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as Partial<PluginSettings>);
     this.i18n = new I18n(this.settings.lang);
   }
 
@@ -56,24 +56,24 @@ export default class FolgezettelPlugin extends Plugin {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE);
     await this.app.workspace.getRightLeaf(false)?.setViewState({ type: VIEW_TYPE, active: true });
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
-    if (leaves.length) this.app.workspace.revealLeaf(leaves[0]);
+    if (leaves.length) void this.app.workspace.revealLeaf(leaves[0]);
   }
 
   async activateGraphView() {
     const leaf = this.app.workspace.getLeaf(true);
     await leaf.setViewState({ type: GRAPH_VIEW_TYPE, active: true });
     const leaves = this.app.workspace.getLeavesOfType(GRAPH_VIEW_TYPE);
-    if (leaves.length) this.app.workspace.revealLeaf(leaves[0]);
+    if (leaves.length) void this.app.workspace.revealLeaf(leaves[0]);
   }
 
   refreshViews() {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
     leaves.forEach((leaf) =>
-      (leaf.view as FolgezettelView).renderList().catch((e) => console.error('Error rendering folgezettel view:', e)),
+      void (leaf.view as FolgezettelView).renderList().catch((e) => console.error('Error rendering folgezettel view:', e)),
     );
     const graphLeaves = this.app.workspace.getLeavesOfType(GRAPH_VIEW_TYPE);
     graphLeaves.forEach((leaf) =>
-      (leaf.view as FolgezettelGraphView).refresh().catch((e) => console.error('Error refreshing graph view:', e)),
+      void (leaf.view as FolgezettelGraphView).refresh().catch((e) => console.error('Error refreshing graph view:', e)),
     );
   }
 
@@ -93,8 +93,8 @@ export default class FolgezettelPlugin extends Plugin {
     return {
       authors,
       author: authors ? authors[0] : undefined,
-      title: typeof fmr['title'] === 'string' ? (fmr['title'] as string) : undefined,
-      year: typeof fmr['year'] === 'string' || typeof fmr['year'] === 'number' ? (fmr['year'] as string | number) : undefined,
+      title: typeof fmr['title'] === 'string' ? fmr['title'] : undefined,
+      year: typeof fmr['year'] === 'string' || typeof fmr['year'] === 'number' ? fmr['year'] : undefined,
     };
   }
 }

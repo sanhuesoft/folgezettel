@@ -4,8 +4,8 @@ import es from './locales/es.json';
 export type LocaleMap = Record<string, string>;
 
 const LOCALES: Record<string, LocaleMap> = {
-  en,
-  es,
+  en: en as LocaleMap,
+  es: es as LocaleMap,
 };
 
 export class I18n {
