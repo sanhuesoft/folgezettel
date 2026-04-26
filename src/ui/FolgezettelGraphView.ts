@@ -18,8 +18,9 @@ export class FolgezettelGraphView extends ItemView {
   getDisplayText() { return this.plugin.i18n.t('view.graphTitle') || 'Folgezettel Graph'; }
   getIcon() { return 'graph'; }
 
-  async onClose() {
+  onClose(): Promise<void> {
     document.querySelectorAll('.fzz-graph-tooltip').forEach((el) => el.remove());
+    return Promise.resolve();
   }
 
   async refresh() {

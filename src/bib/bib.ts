@@ -9,9 +9,7 @@ import {
   MarkdownRenderChild,
   TFile,
 } from 'obsidian';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { RangeSetBuilder } from '@codemirror/state';
 import { BibEntry } from '../types';
 

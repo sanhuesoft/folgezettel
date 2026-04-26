@@ -77,12 +77,12 @@ export default class FolgezettelPlugin extends Plugin {
     );
   }
 
-  async getBibEntry(key: string): Promise<BibEntry | null> {
+  getBibEntry(key: string): Promise<BibEntry | null> {
     const path = `${BIBLIO_FOLDER}/${key}.md`;
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof TFile)) return null;
+    if (!(file instanceof TFile)) return Promise.resolve(null);
     const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    if (!fm || typeof fm !== 'object') return null;
+    if (!fm || typeof fm !== 'object') return Promise.resolve(null);
     const fmr = fm as Record<string, unknown>;
     const toStringArray = (v: unknown): string[] | undefined => {
       if (Array.isArray(v)) return v.map(String).filter(Boolean);
@@ -90,11 +90,11 @@ export default class FolgezettelPlugin extends Plugin {
       return undefined;
     };
     const authors = toStringArray(fmr['authors']) ?? toStringArray(fmr['author']);
-    return {
+    return Promise.resolve({
       authors,
       author: authors ? authors[0] : undefined,
       title: typeof fmr['title'] === 'string' ? fmr['title'] : undefined,
       year: typeof fmr['year'] === 'string' || typeof fmr['year'] === 'number' ? fmr['year'] : undefined,
-    };
+    });
   }
 }
